@@ -72,6 +72,7 @@ class FeishuConfig(BaseChannelConfig):
     webhook_path: str = "/webhook/feishu"
     webhook_encrypt_key: str = ""
     webhook_verification_token: str = ""
+    webhook_skip_signature_verify: bool = False
 
 
 class QQConfig(BaseChannelConfig):
