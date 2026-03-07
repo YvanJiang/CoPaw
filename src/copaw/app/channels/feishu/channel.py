@@ -1607,7 +1607,7 @@ class FeishuChannel(BaseChannel):
         parts: List[OutgoingContentPart],
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Send text as post (md), then images, then files."""
+        """发送内容片段（使用 Card V2 格式，文本和图片整合在一个卡片中）."""
         if not self.enabled:
             return
         recv = await self._get_receive_for_send(to_handle, meta)
@@ -1619,6 +1619,7 @@ class FeishuChannel(BaseChannel):
                 to_handle[:50] if to_handle else "",
             )
             return
+
         receive_id_type, receive_id = recv
         logger.info(
             "feishu send_content_parts: resolved receive_id_type=%s "
@@ -1627,8 +1628,12 @@ class FeishuChannel(BaseChannel):
             (receive_id or "")[:20],
         )
         prefix = (meta or {}).get("bot_prefix", "") or self.bot_prefix or ""
+
+        # 收集文本和图片
         text_parts: List[str] = []
-        media_parts: List[OutgoingContentPart] = []
+        image_parts: List[OutgoingContentPart] = []
+        file_parts: List[OutgoingContentPart] = []
+
         for p in parts:
             t = getattr(p, "type", None) or (
                 p.get("type") if isinstance(p, dict) else None
@@ -1639,57 +1644,67 @@ class FeishuChannel(BaseChannel):
             refusal_val = getattr(p, "refusal", None) or (
                 p.get("refusal") if isinstance(p, dict) else None
             )
+
             if t == ContentType.TEXT and text_val:
                 text_parts.append(text_val or "")
             elif t == ContentType.REFUSAL and refusal_val:
                 text_parts.append(refusal_val or "")
+            elif t == ContentType.IMAGE:
+                image_parts.append(p)
             elif t in (
-                ContentType.IMAGE,
                 ContentType.FILE,
                 ContentType.VIDEO,
                 ContentType.AUDIO,
             ):
-                media_parts.append(p)
-        body = "\n".join(text_parts).strip()
+                file_parts.append(p)
+
         logger.info(
             "feishu send_content_parts: to_handle=%s text_parts=%s "
-            "media_count=%s media_types=%s",
+            "image_count=%s file_count=%s",
             to_handle[:40] if to_handle else "",
             len(text_parts),
-            len(media_parts),
-            [getattr(m, "type", None) for m in media_parts],
+            len(image_parts),
+            len(file_parts),
         )
+
+        # 上传所有图片获取 image_keys
+        image_keys: List[str] = []
+        for part in image_parts:
+            data, filename = await self._part_to_image_bytes(part)
+            if data:
+                loop = asyncio.get_running_loop()
+                image_key = await loop.run_in_executor(
+                    None,
+                    lambda: self._upload_image_sync(data, filename),
+                )
+                if image_key:
+                    image_keys.append(image_key)
+
+        # 发送 Card V2 消息（包含文本和图片）
+        body = "\n".join(text_parts).strip()
         if prefix and body:
             body = prefix + body
-        if body:
-            await self._send_text(receive_id_type, receive_id, body)
-        for part in media_parts:
-            pt = getattr(part, "type", None)
-            if pt == ContentType.IMAGE:
-                ok = await self._send_image(
-                    receive_id_type,
-                    receive_id,
-                    part,
-                )
-                logger.info(
-                    "feishu send_content_parts: image sent ok=%s",
-                    ok,
-                )
-            elif pt in (
-                ContentType.FILE,
-                ContentType.VIDEO,
-                ContentType.AUDIO,
-            ):
-                ok = await self._send_file(
-                    receive_id_type,
-                    receive_id,
-                    part,
-                )
-                logger.info(
-                    "feishu send_content_parts: file sent ok=%s type=%s",
-                    ok,
-                    pt,
-                )
+
+        if body or image_keys:
+            await self._send_card_v2(
+                receive_id_type,
+                receive_id,
+                body,
+                image_keys,
+            )
+
+        # 文件仍然单独发送
+        for part in file_parts:
+            ok = await self._send_file(
+                receive_id_type,
+                receive_id,
+                part,
+            )
+            logger.info(
+                "feishu send_content_parts: file sent ok=%s type=%s",
+                ok,
+                getattr(part, "type", None),
+            )
 
     async def send(
         self,
