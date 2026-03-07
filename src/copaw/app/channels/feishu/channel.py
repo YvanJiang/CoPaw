@@ -1047,6 +1047,74 @@ class FeishuChannel(BaseChannel):
             },
         }
 
+    def _build_card_v2_content(
+        self,
+        text: str,
+        image_keys: List[str],
+        header_title: Optional[str] = None,
+        template: str = "blue",
+    ) -> Dict[str, Any]:
+        """构建飞书 Card V2 消息内容 (Schema 2.0).
+
+        Args:
+            text: Markdown 文本内容
+            image_keys: 图片 key 列表（通过 _upload_image_sync 上传获得）
+            header_title: 卡片标题（可选）
+            template: 头部颜色模板，可选: green, red, blue, orange, indigo, grey
+        """
+        # 构建 body elements
+        elements: List[Dict[str, Any]] = []
+
+        # 添加文本内容
+        if text:
+            elements.append({
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": normalize_feishu_md(text)
+                }
+            })
+
+        # 添加图片元素
+        for image_key in image_keys:
+            elements.append({
+                "tag": "img",
+                "img_key": image_key,
+                "alt": {
+                    "tag": "plain_text",
+                    "content": "图片"
+                }
+            })
+
+        # 如果没有内容，显示占位符
+        if not elements:
+            elements.append({
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": "[empty]"
+                }
+            })
+
+        # 构建基础卡片结构
+        card: Dict[str, Any] = {
+            "schema": "2.0",
+            "config": {"update_multi": True},
+            "body": {"elements": elements}
+        }
+
+        # 添加 header（如果提供了标题）
+        if header_title:
+            card["header"] = {
+                "template": template,
+                "title": {
+                    "tag": "plain_text",
+                    "content": header_title
+                }
+            }
+
+        return card
+
     def _upload_image_sync(self, data: bytes, filename: str) -> Optional[str]:
         """Upload image via lark client; return image_key."""
         if not self._client:
