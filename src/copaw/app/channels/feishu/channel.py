@@ -1712,7 +1712,7 @@ class FeishuChannel(BaseChannel):
         text: str,
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Proactive send: resolve receive_id and send text as post."""
+        """主动发送文本消息（使用 Card V2 格式）."""
         if not self.enabled:
             return
         recv = await self._get_receive_for_send(to_handle, meta)
@@ -1726,7 +1726,7 @@ class FeishuChannel(BaseChannel):
         prefix = (meta or {}).get("bot_prefix", "") or self.bot_prefix or ""
         body = (prefix + text) if text else prefix
         if body:
-            await self._send_text(receive_id_type, receive_id, body)
+            await self._send_card_v2(receive_id_type, receive_id, body, [])
 
     def get_to_handle_from_request(self, request: Any) -> str:
         """Feishu sends by session_id; return feishu:sw: or feishu:open_id:
