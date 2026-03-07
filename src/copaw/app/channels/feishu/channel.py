@@ -1301,16 +1301,16 @@ class FeishuChannel(BaseChannel):
         receive_id: str,
         body: str,
     ) -> bool:
-        """Send text as post (md). Body already has bot_prefix if needed."""
-        post = self._build_post_content(body, [])
-        content = json.dumps(post, ensure_ascii=False)
+        """发送文本消息（使用 Card V2 格式）."""
+        card = self._build_card_v2_content(body, [], header_title=None)
+        content = json.dumps(card, ensure_ascii=False)
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
             lambda: self._send_message_sync(
                 receive_id_type,
                 receive_id,
-                "post",
+                "interactive",
                 content,
             ),
         )
