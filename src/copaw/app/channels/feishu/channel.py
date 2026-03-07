@@ -1315,6 +1315,31 @@ class FeishuChannel(BaseChannel):
             ),
         )
 
+    async def _send_card_v2(
+        self,
+        receive_id_type: str,
+        receive_id: str,
+        text: str,
+        image_keys: List[str],
+        header_title: Optional[str] = None,
+        template: str = "blue",
+    ) -> bool:
+        """发送 Card V2 消息."""
+        card = self._build_card_v2_content(
+            text, image_keys, header_title, template
+        )
+        content = json.dumps(card, ensure_ascii=False)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self._send_message_sync(
+                receive_id_type,
+                receive_id,
+                "interactive",
+                content,
+            ),
+        )
+
     async def _part_to_image_bytes(
         self,
         part: OutgoingContentPart,
