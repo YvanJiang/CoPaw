@@ -1067,50 +1067,47 @@ class FeishuChannel(BaseChannel):
 
         # 添加文本内容
         if text:
-            elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": normalize_feishu_md(text)
+            elements.append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": normalize_feishu_md(text),
+                    },
                 }
-            })
+            )
 
         # 添加图片元素
         for image_key in image_keys:
-            elements.append({
-                "tag": "img",
-                "img_key": image_key,
-                "alt": {
-                    "tag": "plain_text",
-                    "content": "图片"
+            elements.append(
+                {
+                    "tag": "img",
+                    "img_key": image_key,
+                    "alt": {"tag": "plain_text", "content": "图片"},
                 }
-            })
+            )
 
         # 如果没有内容，显示占位符
         if not elements:
-            elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": "[empty]"
+            elements.append(
+                {
+                    "tag": "div",
+                    "text": {"tag": "lark_md", "content": "[empty]"},
                 }
-            })
+            )
 
         # 构建基础卡片结构
         card: Dict[str, Any] = {
             "schema": "2.0",
             "config": {"update_multi": True},
-            "body": {"elements": elements}
+            "body": {"elements": elements},
         }
 
         # 添加 header（如果提供了标题）
         if header_title:
             card["header"] = {
                 "template": template,
-                "title": {
-                    "tag": "plain_text",
-                    "content": header_title
-                }
+                "title": {"tag": "plain_text", "content": header_title},
             }
 
         return card
