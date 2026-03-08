@@ -190,7 +190,11 @@ class MCPClientManager:
         """Build MCP client instance by configured transport."""
         # Merge system environment with config-provided env vars
         # Config env vars take precedence over system env vars
-        merged_env = {**os.environ, **client_config.env}
+        # Filter out empty values to avoid overriding system env vars
+        config_env = {
+            k: v for k, v in client_config.env.items() if v
+        }
+        merged_env = {**os.environ, **config_env}
 
         rebuild_info = {
             "name": client_config.name,
