@@ -36,6 +36,10 @@ from .tools import (
     send_file_to_user,
     write_file,
     create_memory_search_tool,
+    launch_async_process,
+    view_async_processes,
+    stop_async_process,
+    cleanup_async_process,
 )
 from .utils import process_file_and_media_blocks_in_message
 from ..agents.memory import MemoryManager
@@ -170,6 +174,22 @@ class CoPawAgent(ReActAgent):
         # Register built-in tools
         toolkit.register_tool_function(
             execute_shell_command,
+            namesake_strategy=namesake_strategy,
+        )
+        toolkit.register_tool_function(
+            launch_async_process,
+            namesake_strategy=namesake_strategy,
+        )
+        toolkit.register_tool_function(
+            view_async_processes,
+            namesake_strategy=namesake_strategy,
+        )
+        toolkit.register_tool_function(
+            stop_async_process,
+            namesake_strategy=namesake_strategy,
+        )
+        toolkit.register_tool_function(
+            cleanup_async_process,
             namesake_strategy=namesake_strategy,
         )
         toolkit.register_tool_function(

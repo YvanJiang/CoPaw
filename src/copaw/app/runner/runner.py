@@ -24,6 +24,7 @@ from ...agents.memory import MemoryManager
 from ...agents.model_factory import create_model_and_formatter
 from ...agents.react_agent import CoPawAgent
 from ...agents.tools import read_file, write_file, edit_file
+from ...agents.tools.process_manager import cleanup_all_processes
 from ...agents.utils.token_counting import _get_token_counter
 from ...config import load_config
 from ...constant import (
@@ -264,3 +265,9 @@ class AgentRunner(Runner):
             await self.memory_manager.close()
         except Exception as e:
             logger.warning(f"MemoryManager stop failed: {e}")
+
+        # Cleanup all async processes
+        try:
+            await cleanup_all_processes()
+        except Exception as e:
+            logger.warning(f"AsyncProcessManager cleanup failed: {e}")
