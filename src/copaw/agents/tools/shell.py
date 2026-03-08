@@ -5,6 +5,8 @@
 
 import asyncio
 import locale
+import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,11 +18,59 @@ from agentscope.message import TextBlock
 from copaw.constant import WORKING_DIR
 from copaw.envs.store import load_envs
 
+logger = logging.getLogger(__name__)
+
+
+def _get_shell_config_cmd() -> str:
+    """Get the shell configuration source command based on user's shell.
+
+    Detects the user's shell and returns a command to source the appropriate
+    configuration file (e.g., .zshrc, .bashrc, .bash_profile).
+
+    Returns:
+        `str`: Command to source shell config, or empty string if not applicable.
+    """
+    shell = os.environ.get("SHELL", "").lower()
+    home = os.path.expanduser("~")
+
+    # Determine which config file to source
+    config_file = None
+
+    if "zsh" in shell:
+        # For zsh, prefer .zshrc, fallback to .zprofile
+        zshrc = os.path.join(home, ".zshrc")
+        zprofile = os.path.join(home, ".zprofile")
+        if os.path.exists(zshrc):
+            config_file = zshrc
+        elif os.path.exists(zprofile):
+            config_file = zprofile
+    elif "bash" in shell:
+        # For bash, prefer .bashrc, fallback to .bash_profile
+        bashrc = os.path.join(home, ".bashrc")
+        bash_profile = os.path.join(home, ".bash_profile")
+        bash_login = os.path.join(home, ".bash_login")
+        if os.path.exists(bashrc):
+            config_file = bashrc
+        elif os.path.exists(bash_profile):
+            config_file = bash_profile
+        elif os.path.exists(bash_login):
+            config_file = bash_login
+
+    if config_file:
+        logger.info(f"[Shell Tool] Detected shell: {shell}, will source: {config_file}")
+        # Use 'source' for bash/zsh, but need to handle the case where
+        # shell might be different from the one we're targeting
+        return f'source "{config_file}" 2>/dev/null || true'
+
+    logger.info(f"[Shell Tool] No shell config found for: {shell}")
+    return ""
+
 
 def _execute_subprocess_sync(
     cmd: str,
     cwd: str,
     timeout: int,
+    source_shell_config: bool = True,
 ) -> tuple[int, str, str]:
     """Execute subprocess synchronously in a thread.
 
@@ -34,6 +84,8 @@ def _execute_subprocess_sync(
             The working directory for the command execution.
         timeout (`int`):
             The maximum time (in seconds) allowed for the command to run.
+        source_shell_config (`bool`, defaults to `True`):
+            Whether to source shell configuration file before executing command.
 
     Returns:
         `tuple[int, str, str]`:
@@ -41,9 +93,23 @@ def _execute_subprocess_sync(
             standard error of the executed command. If timeout occurs, the
             return code will be -1 and stderr will contain timeout information.
     """
+    # Build command with shell config sourcing if enabled
+    if source_shell_config and sys.platform != "win32":
+        shell_config = _get_shell_config_cmd()
+        if shell_config:
+            # Combine sourcing with the actual command
+            full_cmd = f"{shell_config} && {cmd}"
+            logger.info(f"[Shell Tool] Executing with shell config sourced: {cwd=}")
+        else:
+            full_cmd = cmd
+            logger.info(f"[Shell Tool] Executing without shell config: {cwd=}")
+    else:
+        full_cmd = cmd
+        logger.info(f"[Shell Tool] Executing on Windows or config disabled: {cwd=}")
+
     try:
         result = subprocess.run(
-            cmd,
+            full_cmd,
             shell=True,
             capture_output=True,
             text=True,
@@ -53,18 +119,27 @@ def _execute_subprocess_sync(
             errors="replace",
             check=True,
         )
+        logger.info(
+            f"[Shell Tool] Command completed: returncode={result.returncode}, "
+            f"stdout_len={len(result.stdout)}, stderr_len={len(result.stderr)}"
+        )
         return (
             result.returncode,
             result.stdout.strip("\n"),
             result.stderr.strip("\n"),
         )
     except subprocess.TimeoutExpired:
+        logger.warning(f"[Shell Tool] Command timeout after {timeout}s")
         return (
             -1,
             "",
             f"Command execution exceeded the timeout of {timeout} seconds.",
         )
+    except subprocess.CalledProcessError as e:
+        logger.info(f"[Shell Tool] Command failed with returncode={e.returncode}")
+        return e.returncode, e.stdout.strip("\n"), e.stderr.strip("\n")
     except Exception as e:
+        logger.error(f"[Shell Tool] Command execution error: {e}")
         return -1, "", str(e)
 
 
@@ -293,16 +368,24 @@ async def execute_shell_command(
     # Set working directory
     working_dir = cwd if cwd is not None else WORKING_DIR
 
+    logger.info(f"[Shell Tool] Preparing to execute: {cmd[:100]}... in {working_dir}")
+
     try:
         if sys.platform == "win32":
             # Windows: use thread pool to avoid asyncio subprocess limitations
+            # cmd already includes env setup from _build_command_with_env()
+            logger.info("[Shell Tool] Using Windows thread pool execution")
             returncode, stdout_str, stderr_str = await asyncio.to_thread(
                 _execute_subprocess_sync,
                 cmd,
                 str(working_dir),
                 timeout,
+                source_shell_config=False,
             )
         else:
+            # Unix: cmd already includes shell config sourcing from _build_command_with_env()
+            logger.info(f"[Shell Tool] Executing in {working_dir}")
+
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -326,8 +409,13 @@ async def execute_shell_command(
                     "\n",
                 )
                 returncode = proc.returncode
+                logger.info(
+                    f"[Shell Tool] Command completed: returncode={returncode}, "
+                    f"stdout_len={len(stdout_str)}, stderr_len={len(stderr_str)}"
+                )
 
             except asyncio.TimeoutError:
+                logger.warning(f"[Shell Tool] Command timeout after {timeout}s")
                 # Handle timeout
                 stderr_suffix = (
                     f"⚠️ TimeoutError: The command execution exceeded "
@@ -401,6 +489,7 @@ async def execute_shell_command(
         )
 
     except Exception as e:
+        logger.error(f"[Shell Tool] Command execution failed: {e}")
         return ToolResponse(
             content=[
                 TextBlock(
