@@ -32,6 +32,7 @@ from .runner.manager import ChatManager
 from .routers import router as api_router
 from .routers.voice import voice_router
 from ..envs import load_envs_into_environ
+from .auth_middleware import BasicAuthMiddleware
 
 # Apply log level on load so reload child process gets same level as CLI.
 logger = setup_logger(os.environ.get(LOG_LEVEL_ENV, "info"))
@@ -434,6 +435,16 @@ app = FastAPI(
     redoc_url="/redoc" if DOCS_ENABLED else None,
     openapi_url="/openapi.json" if DOCS_ENABLED else None,
 )
+
+# Load config and apply Basic Auth middleware if enabled
+config = load_config()
+if config.auth.enabled and config.auth.password:
+    app.add_middleware(
+        BasicAuthMiddleware,
+        username=config.auth.username,
+        password=config.auth.password,
+        excluded_paths=config.auth.excluded_paths,
+    )
 
 # Apply CORS middleware if CORS_ORIGINS is set
 if CORS_ORIGINS:
