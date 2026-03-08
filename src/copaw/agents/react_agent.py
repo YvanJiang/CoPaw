@@ -490,11 +490,14 @@ class CoPawAgent(ReActAgent):
 
         try:
             if transport == "stdio":
+                # Merge system environment with config-provided env vars
+                # Config env vars take precedence over system env vars
+                merged_env = {**os.environ, **rebuild_info.get("env", {})}
                 rebuilt_client = StdIOStatefulClient(
                     name=name,
                     command=rebuild_info.get("command"),
                     args=rebuild_info.get("args", []),
-                    env=rebuild_info.get("env", {}),
+                    env=merged_env,
                     cwd=rebuild_info.get("cwd"),
                 )
                 setattr(rebuilt_client, "_copaw_rebuild_info", rebuild_info)
