@@ -303,6 +303,17 @@ class MCPConfig(BaseModel):
     )
 
 
+class AuthConfig(BaseModel):
+    """HTTP Basic Auth configuration for web console and API."""
+
+    enabled: bool = False
+    username: str = "admin"
+    password: str = ""  # Empty password means auth is disabled
+    excluded_paths: List[str] = Field(
+        default_factory=lambda: ["/webhook/feishu", "/webhook/feishu/health"]
+    )
+
+
 class Config(BaseModel):
     """Root config (config.json)."""
 
@@ -313,6 +324,7 @@ class Config(BaseModel):
     last_dispatch: Optional[LastDispatchConfig] = None
     # When False, channel output hides tool call/result details (show "...").
     show_tool_details: bool = True
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
 
 ChannelConfigUnion = Union[
