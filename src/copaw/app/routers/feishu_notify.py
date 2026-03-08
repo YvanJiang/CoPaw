@@ -173,6 +173,9 @@ async def notify_feishu(
         chat_type = "group" if receive_id_type == "chat_id" else "p2p"
 
         # Construct simulated webhook payload
+        # Use a virtual sender_id for simulated events to avoid exposing
+        # real user IDs and prevent 400 errors when fetching user info
+        simulated_sender_id = open_id or f"virtual_notify_{uuid.uuid4().hex[:8]}"
         simulated_event = {
             "event": {
                 "message": {
@@ -184,7 +187,7 @@ async def notify_feishu(
                 },
                 "sender": {
                     "sender_type": "user",
-                    "sender_id": {"open_id": open_id or chat_id},
+                    "sender_id": {"open_id": simulated_sender_id},
                     "name": source_name,
                     "nickname": source_name,
                 },
