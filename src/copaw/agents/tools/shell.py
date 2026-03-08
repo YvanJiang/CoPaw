@@ -14,6 +14,7 @@ from agentscope.tool import ToolResponse
 from agentscope.message import TextBlock
 
 from copaw.constant import WORKING_DIR
+from copaw.envs.store import load_envs
 
 
 def _execute_subprocess_sync(
@@ -67,6 +68,195 @@ def _execute_subprocess_sync(
         return -1, "", str(e)
 
 
+def _get_default_env_file() -> Optional[str]:
+    """Get the default shell configuration file based on OS and shell.
+
+    Returns:
+        `Optional[str]`: Path to the default env file, or None if not found.
+    """
+    import os
+
+    if sys.platform == "win32":
+        # Windows: Check for common env files in USERPROFILE
+        user_profile = os.environ.get("USERPROFILE", "")
+        candidates = [
+            os.path.join(user_profile, ".env"),
+            os.path.join(user_profile, "env.bat"),
+        ]
+    else:
+        # Linux/Mac: Check shell type and corresponding rc file
+        home = os.path.expanduser("~")
+        shell = os.environ.get("SHELL", "").lower()
+
+        if "zsh" in shell:
+            candidates = [
+                os.path.join(home, ".zshrc"),
+                os.path.join(home, ".bashrc"),
+            ]
+        elif "bash" in shell:
+            candidates = [
+                os.path.join(home, ".bashrc"),
+                os.path.join(home, ".bash_profile"),
+                os.path.join(home, ".profile"),
+            ]
+        else:
+            # Fallback for other shells
+            candidates = [
+                os.path.join(home, ".zshrc"),
+                os.path.join(home, ".bashrc"),
+                os.path.join(home, ".profile"),
+            ]
+
+    # Return the first existing file
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+
+    return None
+
+
+def _build_env_exports_win32(envs: dict[str, str]) -> str:
+    """Build Windows environment variable export commands.
+
+    Args:
+        envs: Dictionary of environment variables.
+
+    Returns:
+        PowerShell commands to set environment variables.
+    """
+    if not envs:
+        return ""
+    exports = []
+    for key, value in envs.items():
+        # Escape single quotes in value for PowerShell
+        escaped_value = value.replace("'", "''")
+        exports.append(
+            f"[Environment]::SetEnvironmentVariable('{key}', '{escaped_value}', 'Process')"
+        )
+    return "; ".join(exports)
+
+
+def _build_env_exports_unix(envs: dict[str, str]) -> str:
+    """Build Unix/Linux/Mac environment variable export commands.
+
+    Args:
+        envs: Dictionary of environment variables.
+
+    Returns:
+        Shell export commands to set environment variables.
+    """
+    if not envs:
+        return ""
+    exports = []
+    for key, value in envs.items():
+        # Escape single quotes in value and wrap in single quotes
+        escaped_value = value.replace("'", "'\\''")
+        exports.append(f"export {key}='{escaped_value}'")
+    return " && ".join(exports)
+
+
+def _escape_for_powershell_double_quotes(s: str) -> str:
+    """Escape a string for safe embedding in PowerShell double-quoted string.
+
+    In PowerShell double-quoted strings, double quotes must be escaped with
+    backslash: \".
+
+    Args:
+        s: The string to escape.
+
+    Returns:
+        The escaped string safe for PowerShell double quotes.
+    """
+    return s.replace('"', '\\"')
+
+
+def _escape_for_powershell_single_quotes(s: str) -> str:
+    """Escape a string for safe embedding in PowerShell single-quoted string.
+
+    In PowerShell, single quotes within single-quoted strings are escaped
+    by doubling them: ''.
+
+    Args:
+        s: The string to escape.
+
+    Returns:
+        The escaped string safe for PowerShell single quotes.
+    """
+    return s.replace("'", "''")
+
+
+def _build_command_with_env(command: str) -> str:
+    """Build shell command with environment variable sourcing.
+
+    Automatically detects and sources the default shell configuration file
+    based on the operating system and current shell, and also loads
+    environment variables from envs.json via load_envs().
+
+    Args:
+        command (`str`):
+            The shell command to execute.
+
+    Returns:
+        `str`: The combined command with environment sourcing.
+    """
+    cmd = (command or "").strip()
+
+    # Load environment variables from envs.json
+    envs = load_envs()
+
+    env_file = _get_default_env_file()
+
+    if sys.platform == "win32":
+        # Build env exports from envs.json
+        env_exports = _build_env_exports_win32(envs)
+
+        # Escape user command for PowerShell double-quoted context
+        escaped_cmd = _escape_for_powershell_double_quotes(cmd)
+
+        if not env_file:
+            if env_exports:
+                return f'powershell -Command "{env_exports}; {escaped_cmd}"'
+            return cmd
+
+        # Windows: Use PowerShell to load environment variables from file
+        # Supports .env format (KEY=VALUE) and .bat format
+        if env_file.lower().endswith(".bat") or env_file.lower().endswith(".cmd"):
+            # For batch files, use call to execute them
+            if env_exports:
+                return f'call "{env_file}" && powershell -Command "{env_exports}; {escaped_cmd}"'
+            return f'call "{env_file}" && {cmd}'
+        else:
+            # Escape file path for PowerShell single-quoted context
+            escaped_env_file = _escape_for_powershell_single_quotes(env_file)
+
+            # For .env files, use PowerShell to parse and set variables
+            ps_script_parts = [
+                f'powershell -Command "',
+                f'Get-Content -Path \'{escaped_env_file}\' | ',
+                f'ForEach-Object {{ ',
+                f'if ($_ -match \'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$\') ',
+                f'{{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], \'Process\') }} ',
+                f'}}',
+            ]
+            if env_exports:
+                ps_script_parts.append(f'; {env_exports}')
+            ps_script_parts.append(f'; {escaped_cmd}"')
+            return ''.join(ps_script_parts)
+    else:
+        # Build env exports from envs.json
+        env_exports = _build_env_exports_unix(envs)
+
+        if not env_file:
+            if env_exports:
+                return f'{env_exports} && {cmd}'
+            return cmd
+
+        # Linux/Mac: Use source command (sh compatible)
+        if env_exports:
+            return f'source "{env_file}" && {env_exports} && {cmd}'
+        return f'source "{env_file}" && {cmd}'
+
+
 # pylint: disable=too-many-branches, too-many-statements
 async def execute_shell_command(
     command: str,
@@ -76,6 +266,10 @@ async def execute_shell_command(
     """Execute given command and return the return code, standard output and
     error within <returncode></returncode>, <stdout></stdout> and
     <stderr></stderr> tags.
+
+    Automatically sources the default shell configuration file (~/.zshrc,
+    ~/.bashrc, etc.) before executing the command, based on the operating
+    system and current shell.
 
     Args:
         command (`str`):
@@ -94,7 +288,7 @@ async def execute_shell_command(
             return code will be -1 and stderr will contain timeout information.
     """
 
-    cmd = (command or "").strip()
+    cmd = _build_command_with_env(command)
 
     # Set working directory
     working_dir = cwd if cwd is not None else WORKING_DIR
