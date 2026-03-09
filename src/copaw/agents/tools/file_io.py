@@ -49,6 +49,12 @@ async def read_file(  # pylint: disable=too-many-return-statements
 
     file_path = _resolve_file_path(file_path)
 
+    # Convert string line numbers to integers if necessary
+    if start_line is not None and isinstance(start_line, str):
+        start_line = int(start_line)
+    if end_line is not None and isinstance(end_line, str):
+        end_line = int(end_line)
+
     if not os.path.exists(file_path):
         return ToolResponse(
             content=[

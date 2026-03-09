@@ -21,12 +21,117 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from copaw.constant import WORKING_DIR
+from copaw.envs.store import load_envs
 
 logger = logging.getLogger(__name__)
 
 # 平台检测
 IS_WINDOWS = platform.system() == "Windows"
 IS_POSIX = os.name == "posix"
+
+
+def _get_default_env_file() -> Optional[str]:
+    """获取默认的 shell 配置文件路径。
+
+    根据操作系统和当前 shell 类型，返回对应的配置文件路径
+    （如 ~/.zshrc、~/.bashrc、~/.bash_profile 等）。
+
+    Returns:
+        `Optional[str]`: 配置文件路径，如果不存在则返回 None。
+    """
+    if IS_WINDOWS:
+        # Windows: 检查常见的环境文件
+        user_profile = os.environ.get("USERPROFILE", "")
+        candidates = [
+            os.path.join(user_profile, ".env"),
+            os.path.join(user_profile, "env.bat"),
+        ]
+    else:
+        # Linux/Mac: 根据 shell 类型选择配置文件
+        home = os.path.expanduser("~")
+        shell = os.environ.get("SHELL", "").lower()
+
+        if "zsh" in shell:
+            candidates = [
+                os.path.join(home, ".zshrc"),
+                os.path.join(home, ".zprofile"),
+                os.path.join(home, ".bashrc"),
+            ]
+        elif "bash" in shell:
+            candidates = [
+                os.path.join(home, ".bashrc"),
+                os.path.join(home, ".bash_profile"),
+                os.path.join(home, ".bash_login"),
+                os.path.join(home, ".profile"),
+            ]
+        else:
+            # 其他 shell 的默认候选
+            candidates = [
+                os.path.join(home, ".zshrc"),
+                os.path.join(home, ".bashrc"),
+                os.path.join(home, ".profile"),
+            ]
+
+    # 返回第一个存在的文件
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+
+    return None
+
+
+def _build_env_exports_unix(envs: Dict[str, str]) -> str:
+    """构建 Unix/Linux/Mac 环境变量导出命令。
+
+    Args:
+        envs: 环境变量字典。
+
+    Returns:
+        Shell export 命令字符串。
+    """
+    if not envs:
+        return ""
+    exports = []
+    for key, value in envs.items():
+        # 转义单引号
+        escaped_value = value.replace("'", "'\\''")
+        exports.append(f"export {key}='{escaped_value}'")
+    return " && ".join(exports)
+
+
+def _build_command_with_env(command: str) -> str:
+    """构建带有环境变量 source 的命令。
+
+    自动检测并 source 默认的 shell 配置文件，同时加载 envs.json 中的环境变量。
+
+    Args:
+        command: 原始 shell 命令。
+
+    Returns:
+        包装后的命令字符串。
+    """
+    cmd = (command or "").strip()
+
+    # 加载环境变量
+    envs = load_envs()
+    env_file = _get_default_env_file()
+
+    if IS_WINDOWS:
+        # Windows: 直接返回原命令，环境变量已通过 env 参数传递
+        return cmd
+    else:
+        # 构建环境变量导出
+        env_exports = _build_env_exports_unix(envs)
+
+        if not env_file:
+            if env_exports:
+                return f"{env_exports} && {cmd}"
+            return cmd
+
+        # Unix/Linux/Mac: source 配置文件并导出环境变量
+        if env_exports:
+            return f'source "{env_file}" && {env_exports} && {cmd}'
+        return f'source "{env_file}" && {cmd}'
 
 
 class ProcessState(str, Enum):
@@ -231,15 +336,16 @@ class AsyncProcessManager:
             # 创建环境变量
             env = os.environ.copy()
             # 合并自定义环境变量
-            from copaw.envs.store import load_envs
-
             envs = load_envs()
             env.update(envs)
+
+            # 构建带环境 source 的命令（类似 shell.py 的处理）
+            full_command = _build_command_with_env(command)
 
             # 启动进程
             # 注意：使用 DEVNULL 避免 PIPE 缓冲区满导致进程阻塞
             proc = await asyncio.create_subprocess_shell(
-                command,
+                full_command,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
                 cwd=str(working_dir),
@@ -249,11 +355,11 @@ class AsyncProcessManager:
                 **({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS else {}),
             )
 
-            # 创建进程信息
+            # 创建进程信息（记录实际执行的完整命令）
             proc_info = AsyncProcessInfo(
                 pid=proc.pid,
                 name=name,
-                command=command,
+                command=full_command,
                 started_at=now,
                 cwd=str(working_dir),
                 status=ProcessState.RUNNING,
