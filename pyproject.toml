@@ -24,6 +24,7 @@ dependencies = [
     "python-telegram-bot>=20.0",
     "twilio>=9.10.2",
     "cryptography>=3.0",
+    "pywebview>=4.0",
 ]
 
 [tool.setuptools.dynamic]
@@ -65,10 +66,14 @@ llamacpp = [
 ]
 mlx = [
     "copaw[local]",
-    "mlx-lm>=0.10.0",
+    "mlx-lm>=0.10.0; sys_platform == 'darwin'",
 ]
 ollama = [
     "ollama>=0.6.1",
+]
+full = [
+    "copaw[local,ollama,llamacpp]",
+    "mlx-lm>=0.10.0; sys_platform == 'darwin'",
 ]
 
 [tool.pytest.ini_options]
