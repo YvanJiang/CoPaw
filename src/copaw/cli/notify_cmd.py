@@ -13,14 +13,16 @@ def notify_cmd():
 
 @notify_cmd.command(name="send")
 @click.option(
-    "--message", "-m",
+    "--message",
+    "-m",
     required=True,
-    help="Message content to send"
+    help="Message content to send",
 )
 @click.option(
-    "--source", "-s",
+    "--source",
+    "-s",
     default="CoPaw CLI",
-    help="Source identifier for the notification"
+    help="Source identifier for the notification",
 )
 def send_notification(message: str, source: str):
     """Send a test notification."""
@@ -29,7 +31,7 @@ def send_notification(message: str, source: str):
     if not service.is_configured():
         raise click.ClickException(
             "❌ Notification service not configured. "
-            "Please set API_USER and API_PASS environment variables."
+            "Please set API_USER and API_PASS environment variables.",
         )
 
     click.echo(f"Sending notification...")
@@ -69,5 +71,5 @@ def notification_status():
         click.echo("Optional environment variables:")
         click.echo(
             "  - COPAW_NOTIFY_URL: Notification service URL "
-            "(default: http://127.0.0.1:8088/api/v1)"
+            "(default: http://127.0.0.1:8088/api/v1)",
         )

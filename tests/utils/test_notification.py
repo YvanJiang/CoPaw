@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
 """Tests for notification service."""
 
 import os
 import pytest
 from unittest.mock import patch, MagicMock
 
-from copaw.utils.notification import NotificationService, get_notification_service
+from copaw.utils.notification import (
+    NotificationService,
+    get_notification_service,
+)
 
 
 class TestNotificationService:
@@ -75,7 +79,9 @@ class TestNotificationService:
         """Test build_feishu_command raises error when not configured."""
         with patch.dict(os.environ, {}, clear=True):
             service = NotificationService()
-            with pytest.raises(RuntimeError, match="Notification service not configured"):
+            with pytest.raises(
+                RuntimeError, match="Notification service not configured"
+            ):
                 service.build_feishu_command("Hello", "Test")
 
     def test_build_feishu_command_escapes_quotes(self):
@@ -103,7 +109,9 @@ class TestNotificationService:
     @patch("subprocess.run")
     def test_send_feishu_sync_failure(self, mock_run):
         """Test failed notification sending."""
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Error")
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="Error"
+        )
 
         env = {"API_USER": "user", "API_PASS": "pass"}
         with patch.dict(os.environ, env, clear=True):
@@ -124,6 +132,7 @@ class TestNotificationService:
     def test_send_feishu_sync_timeout(self, mock_run):
         """Test notification sending with timeout."""
         from subprocess import TimeoutExpired
+
         mock_run.side_effect = TimeoutExpired("curl", 30)
 
         env = {"API_USER": "user", "API_PASS": "pass"}
@@ -141,6 +150,7 @@ class TestGetNotificationService:
         """Test that get_notification_service returns singleton."""
         # Reset singleton for test
         import copaw.utils.notification as notification_module
+
         notification_module._notification_service = None
 
         with patch.dict(os.environ, {}, clear=True):

@@ -58,7 +58,9 @@ def _get_shell_config_cmd() -> str:
             config_file = bash_login
 
     if config_file:
-        logger.info(f"[Shell Tool] Detected shell: {shell}, will source: {config_file}")
+        logger.info(
+            f"[Shell Tool] Detected shell: {shell}, will source: {config_file}"
+        )
         # Use 'source' for bash/zsh, but need to handle the case where
         # shell might be different from the one we're targeting
         return f'source "{config_file}" 2>/dev/null || true'
@@ -100,13 +102,17 @@ def _execute_subprocess_sync(
         if shell_config:
             # Combine sourcing with the actual command
             full_cmd = f"{shell_config} && {cmd}"
-            logger.info(f"[Shell Tool] Executing with shell config sourced: {cwd=}")
+            logger.info(
+                f"[Shell Tool] Executing with shell config sourced: {cwd=}"
+            )
         else:
             full_cmd = cmd
             logger.info(f"[Shell Tool] Executing without shell config: {cwd=}")
     else:
         full_cmd = cmd
-        logger.info(f"[Shell Tool] Executing on Windows or config disabled: {cwd=}")
+        logger.info(
+            f"[Shell Tool] Executing on Windows or config disabled: {cwd=}"
+        )
 
     try:
         result = subprocess.run(
@@ -122,7 +128,7 @@ def _execute_subprocess_sync(
         )
         logger.info(
             f"[Shell Tool] Command completed: returncode={result.returncode}, "
-            f"stdout_len={len(result.stdout)}, stderr_len={len(result.stderr)}"
+            f"stdout_len={len(result.stdout)}, stderr_len={len(result.stderr)}",
         )
         return (
             result.returncode,
@@ -137,7 +143,9 @@ def _execute_subprocess_sync(
             f"Command execution exceeded the timeout of {timeout} seconds.",
         )
     except subprocess.CalledProcessError as e:
-        logger.info(f"[Shell Tool] Command failed with returncode={e.returncode}")
+        logger.info(
+            f"[Shell Tool] Command failed with returncode={e.returncode}"
+        )
         return e.returncode, e.stdout.strip("\n"), e.stderr.strip("\n")
     except Exception as e:
         logger.error(f"[Shell Tool] Command execution error: {e}")
@@ -207,7 +215,7 @@ def _build_env_exports_win32(envs: dict[str, str]) -> str:
         # Escape single quotes in value for PowerShell
         escaped_value = value.replace("'", "''")
         exports.append(
-            f"[Environment]::SetEnvironmentVariable('{key}', '{escaped_value}', 'Process')"
+            f"[Environment]::SetEnvironmentVariable('{key}', '{escaped_value}', 'Process')",
         )
     return "; ".join(exports)
 
@@ -296,7 +304,9 @@ def _build_command_with_env(command: str) -> str:
 
         # Windows: Use PowerShell to load environment variables from file
         # Supports .env format (KEY=VALUE) and .bat format
-        if env_file.lower().endswith(".bat") or env_file.lower().endswith(".cmd"):
+        if env_file.lower().endswith(".bat") or env_file.lower().endswith(
+            ".cmd"
+        ):
             # For batch files, use call to execute them
             if env_exports:
                 return f'call "{env_file}" && powershell -Command "{env_exports}; {escaped_cmd}"'
@@ -308,23 +318,23 @@ def _build_command_with_env(command: str) -> str:
             # For .env files, use PowerShell to parse and set variables
             ps_script_parts = [
                 f'powershell -Command "',
-                f'Get-Content -Path \'{escaped_env_file}\' | ',
-                f'ForEach-Object {{ ',
-                f'if ($_ -match \'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$\') ',
-                f'{{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], \'Process\') }} ',
-                f'}}',
+                f"Get-Content -Path '{escaped_env_file}' | ",
+                f"ForEach-Object {{ ",
+                f"if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') ",
+                f"{{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') }} ",
+                f"}}",
             ]
             if env_exports:
-                ps_script_parts.append(f'; {env_exports}')
+                ps_script_parts.append(f"; {env_exports}")
             ps_script_parts.append(f'; {escaped_cmd}"')
-            return ''.join(ps_script_parts)
+            return "".join(ps_script_parts)
     else:
         # Build env exports from envs.json
         env_exports = _build_env_exports_unix(envs)
 
         if not env_file:
             if env_exports:
-                return f'{env_exports} && {cmd}'
+                return f"{env_exports} && {cmd}"
             return cmd
 
         # Linux/Mac: Use source command (sh compatible)
@@ -366,8 +376,8 @@ async def execute_shell_command(
     # 检查是否尝试直接调用 claude 命令
     # 匹配行首、管道符、分号、&&、|| 后的 claude 或 claude_XXX 命令
     claude_pattern = re.compile(
-        r'(?:^|[;|&]|&&|\|\|)\s*(claude(?:[_-][a-zA-Z0-9_]+)?)\b',
-        re.IGNORECASE
+        r"(?:^|[;|&]|&&|\|\|)\s*(claude(?:[_-][a-zA-Z0-9_]+)?)\b",
+        re.IGNORECASE,
     )
     matches = claude_pattern.findall(command)
     if matches:
@@ -384,8 +394,8 @@ async def execute_shell_command(
     # 检查是否尝试使用 sleep 进行系统等待
     # 匹配行首、管道符、分号、&&、|| 后的 sleep 命令
     sleep_pattern = re.compile(
-        r'(?:^|[;|&]|&&|\|\|)\s*(sleep)\b',
-        re.IGNORECASE
+        r"(?:^|[;|&]|&&|\|\|)\s*(sleep)\b",
+        re.IGNORECASE,
     )
     if sleep_pattern.search(command):
         error_msg = (
@@ -414,7 +424,9 @@ async def execute_shell_command(
     # Set working directory
     working_dir = cwd if cwd is not None else WORKING_DIR
 
-    logger.info(f"[Shell Tool] Preparing to execute: {cmd[:100]}... in {working_dir}")
+    logger.info(
+        f"[Shell Tool] Preparing to execute: {cmd[:100]}... in {working_dir}"
+    )
 
     try:
         if sys.platform == "win32":
@@ -457,11 +469,13 @@ async def execute_shell_command(
                 returncode = proc.returncode
                 logger.info(
                     f"[Shell Tool] Command completed: returncode={returncode}, "
-                    f"stdout_len={len(stdout_str)}, stderr_len={len(stderr_str)}"
+                    f"stdout_len={len(stdout_str)}, stderr_len={len(stderr_str)}",
                 )
 
             except asyncio.TimeoutError:
-                logger.warning(f"[Shell Tool] Command timeout after {timeout}s")
+                logger.warning(
+                    f"[Shell Tool] Command timeout after {timeout}s"
+                )
                 # Handle timeout
                 stderr_suffix = (
                     f"⚠️ TimeoutError: The command execution exceeded "

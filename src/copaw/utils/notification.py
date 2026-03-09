@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Notification service for sending messages via Feishu API."""
 
 import os
@@ -18,7 +19,8 @@ class NotificationService:
             base_url: Base URL for notification API. Defaults to env var or localhost.
         """
         self.base_url = base_url or os.environ.get(
-            "COPAW_NOTIFY_URL", "http://127.0.0.1:8088/api/v1"
+            "COPAW_NOTIFY_URL",
+            "http://127.0.0.1:8088/api/v1",
         )
         self.api_user = os.environ.get("API_USER")
         self.api_pass = os.environ.get("API_PASS")
@@ -47,7 +49,7 @@ class NotificationService:
         if not self.is_configured():
             raise RuntimeError(
                 "Notification service not configured. "
-                "Please set API_USER and API_PASS environment variables."
+                "Please set API_USER and API_PASS environment variables.",
             )
 
         # Escape quotes in message to prevent shell injection
@@ -77,7 +79,7 @@ class NotificationService:
         """
         if not self.is_configured():
             logger.warning(
-                "Cannot send notification: API_USER and API_PASS not configured"
+                "Cannot send notification: API_USER and API_PASS not configured",
             )
             return False
 
@@ -96,7 +98,8 @@ class NotificationService:
                 return True
             else:
                 logger.error(
-                    "Failed to send notification: %s", result.stderr
+                    "Failed to send notification: %s",
+                    result.stderr,
                 )
                 return False
 

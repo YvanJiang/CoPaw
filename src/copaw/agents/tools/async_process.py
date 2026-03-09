@@ -41,20 +41,48 @@ def _format_process_table(processes: list[AsyncProcessInfo]) -> str:
 
     lines = []
     lines.append(f"当前运行的异步进程 ({len(processes)}):")
-    lines.append("┌" + "─" * name_width + "┬" + "─" * pid_width + "┬" + "─" * cmd_width + "┐")
+    lines.append(
+        "┌"
+        + "─" * name_width
+        + "┬"
+        + "─" * pid_width
+        + "┬"
+        + "─" * cmd_width
+        + "┐"
+    )
     header_name = "名称".ljust(name_width)
     header_pid = "PID".ljust(pid_width)
     header_cmd = "命令".ljust(cmd_width)
     lines.append(f"│ {header_name} │ {header_pid} │ {header_cmd} │")
-    lines.append("├" + "─" * name_width + "┼" + "─" * pid_width + "┼" + "─" * cmd_width + "┤")
+    lines.append(
+        "├"
+        + "─" * name_width
+        + "┼"
+        + "─" * pid_width
+        + "┼"
+        + "─" * cmd_width
+        + "┤"
+    )
 
     for proc in processes:
         name = proc.name.ljust(name_width)
         pid = str(proc.pid).ljust(pid_width)
-        cmd = proc.command[:cmd_width].ljust(cmd_width) if len(proc.command) > cmd_width else proc.command.ljust(cmd_width)
+        cmd = (
+            proc.command[:cmd_width].ljust(cmd_width)
+            if len(proc.command) > cmd_width
+            else proc.command.ljust(cmd_width)
+        )
         lines.append(f"│ {name} │ {pid} │ {cmd} │")
 
-    lines.append("└" + "─" * (name_width + 2) + "┴" + "─" * (pid_width + 2) + "┴" + "─" * (cmd_width + 2) + "┘")
+    lines.append(
+        "└"
+        + "─" * (name_width + 2)
+        + "┴"
+        + "─" * (pid_width + 2)
+        + "┴"
+        + "─" * (cmd_width + 2)
+        + "┘"
+    )
 
     return "\n".join(lines)
 
@@ -140,7 +168,7 @@ async def launch_async_process(
             try:
                 notify_cmd = notification_service.build_feishu_command(
                     message=message,
-                    source="CoPaw"
+                    source="CoPaw",
                 )
                 # 使用 && 包装命令，确保只有命令成功时才发送通知
                 wrapped_command = f"({command}) && {notify_cmd}"
@@ -149,7 +177,7 @@ async def launch_async_process(
         else:
             logger.warning(
                 "notify_on_complete=True 但通知服务未配置。"
-                "请设置 API_USER 和 API_PASS 环境变量。"
+                "请设置 API_USER 和 API_PASS 环境变量。",
             )
 
     try:
@@ -163,7 +191,7 @@ async def launch_async_process(
         proc_info = await manager.launch(
             command=wrapped_command,
             name=name,
-            cwd=cwd
+            cwd=cwd,
         )
 
         # 构建响应
@@ -179,22 +207,28 @@ async def launch_async_process(
         if notify_on_complete:
             notification_service = get_notification_service()
             if notification_service.is_configured():
-                response_lines.extend([
-                    f"",
-                    f"📬 通知：已启用",
-                    f"  消息：{notify_message or '默认'}"
-                ])
+                response_lines.extend(
+                    [
+                        f"",
+                        f"📬 通知：已启用",
+                        f"  消息：{notify_message or '默认'}",
+                    ]
+                )
             else:
-                response_lines.extend([
-                    f"",
-                    f"⚠️ 通知：未配置（请设置 API_USER 和 API_PASS）"
-                ])
+                response_lines.extend(
+                    [
+                        f"",
+                        f"⚠️ 通知：未配置（请设置 API_USER 和 API_PASS）",
+                    ]
+                )
 
-        response_lines.extend([
-            f"",
-            f"提示：使用 view_async_processes 查看进程列表，"
-            f"使用 stop_async_process 停止进程。"
-        ])
+        response_lines.extend(
+            [
+                f"",
+                f"提示：使用 view_async_processes 查看进程列表，"
+                f"使用 stop_async_process 停止进程。",
+            ]
+        )
 
         response_text = "\n".join(response_lines)
 
