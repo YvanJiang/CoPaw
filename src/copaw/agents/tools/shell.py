@@ -392,13 +392,13 @@ async def execute_shell_command(
             "❌ 检测到使用 sleep 命令进行系统等待。\n\n"
             "请停止当前会话，让自己睡一觉，并改用 "
             "launch_async_process 启动异步等待任务。\n\n"
-            "示例：\n"
-            "launch_async_process(command='sleep 60 && <your command> && "
-            "curl -u $API_USER:$API_PASS \\\n"
-            "    -X POST \"http://127.0.0.1:8088/api/v1/notify/feishu\" \\\n"
-            "    -H \"Content-Type: application/json\" \\\n"
-            "    -d '{\"message\":\"wait-task completed\",\"source\":\"wait-task\"}'', "
-            "name='wait-task')"
+            "示例（使用 notify_on_complete 自动发送完成通知）：\n"
+            "launch_async_process(\n"
+            "    command='sleep 60 && <your command>',\n"
+            "    name='wait-task',\n"
+            "    notify_on_complete=True,\n"
+            "    notify_message='等待任务已完成'\n"
+            ")"
         )
         return ToolResponse(
             content=[
