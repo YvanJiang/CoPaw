@@ -33,7 +33,7 @@ from .tools import (
     execute_shell_command,
     get_current_time,
     read_file,
-    read_image,
+    read_media,
     send_file_to_user,
     write_file,
     create_memory_search_tool,
@@ -222,7 +222,7 @@ class CoPawAgent(ReActAgent):
             namesake_strategy=namesake_strategy,
         )
         toolkit.register_tool_function(
-            read_image,
+            read_media,
             namesake_strategy=namesake_strategy,
         )
 

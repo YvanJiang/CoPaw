@@ -27,7 +27,7 @@ from .async_process import (
     stop_async_process,
     cleanup_async_process,
 )
-from .read_image import read_image
+from .read_media import read_media
 
 __all__ = [
     "execute_python_code",
@@ -49,5 +49,5 @@ __all__ = [
     "view_async_processes",
     "stop_async_process",
     "cleanup_async_process",
-    "read_image",
+    "read_media",
 ]
