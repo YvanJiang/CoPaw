@@ -578,35 +578,56 @@ class FeishuChannel(BaseChannel):
         content_rows = data.get("content", [])
         if isinstance(content_rows, list):
             for row in content_rows:
-                if not isinstance(row, list):
-                    continue
-                row_texts: List[str] = []
-                for item in row:
-                    if not isinstance(item, dict):
-                        continue
-                    tag = item.get("tag", "")
-                    if tag == "text":
-                        text = item.get("text", "")
-                        if text:
-                            row_texts.append(text)
-                    elif tag == "md":
-                        text = item.get("text", "")
-                        if text:
-                            row_texts.append(text)
-                    elif tag == "img":
-                        image_key = item.get("image_key", "")
-                        if image_key:
-                            url_or_path = await self._download_image_resource(
-                                message_id,
-                                image_key,
-                            )
-                            if url_or_path:
-                                result["image_urls"].append(url_or_path)
-                if row_texts:
-                    text_parts.append("".join(row_texts))
+                row_text = await self._parse_content_row(
+                    row, message_id, result["image_urls"]
+                )
+                if row_text:
+                    text_parts.append(row_text)
 
         result["text"] = "\n".join(text_parts)
         return result
+
+    async def _parse_content_row(
+        self,
+        row: Any,
+        message_id: str,
+        image_urls: List[str],
+    ) -> str:
+        """Parse a single content row, extracting text and image URLs.
+
+        Args:
+            row: Content row (list of items).
+            message_id: Message ID for image download.
+            image_urls: List to append found image URLs to.
+
+        Returns:
+            Concatenated text from the row, or empty string.
+        """
+        if not isinstance(row, list):
+            return ""
+        row_texts: List[str] = []
+        for item in row:
+            if not isinstance(item, dict):
+                continue
+            tag = item.get("tag", "")
+            if tag == "text":
+                text = item.get("text", "")
+                if text:
+                    row_texts.append(text)
+            elif tag == "md":
+                text = item.get("text", "")
+                if text:
+                    row_texts.append(text)
+            elif tag == "img":
+                image_key = item.get("image_key", "")
+                if image_key:
+                    url_or_path = await self._download_image_resource(
+                        message_id,
+                        image_key,
+                    )
+                    if url_or_path:
+                        image_urls.append(url_or_path)
+        return "".join(row_texts)
 
     def _emit_request_threadsafe(self, request: Any) -> None:
         """Enqueue request via manager (thread-safe)."""
