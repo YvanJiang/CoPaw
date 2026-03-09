@@ -1,13 +1,14 @@
 """Integration tests for multimodal data flow from channel to formatter."""
-import pytest
-import tempfile
-import os
 import base64
-from unittest.mock import Mock, patch, AsyncMock
+import os
+import tempfile
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+from agentscope.formatter import OpenAIChatFormatter
 
 from copaw.agents.utils.multimodal_utils import convert_media_blocks_to_base64
 from copaw.agents.model_factory import _create_file_block_support_formatter
-from agentscope.formatter import OpenAIChatFormatter
 
 
 class TestMultimodalEndToEnd:

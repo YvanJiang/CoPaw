@@ -1,13 +1,14 @@
 """Tests for model factory and FileBlockSupportFormatter."""
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
-import tempfile
 import os
+import tempfile
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+from agentscope.formatter import OpenAIChatFormatter
 
 from copaw.agents.model_factory import (
     _create_file_block_support_formatter,
 )
-from agentscope.formatter import OpenAIChatFormatter
 
 
 class TestFileBlockSupportFormatterMultimodal:

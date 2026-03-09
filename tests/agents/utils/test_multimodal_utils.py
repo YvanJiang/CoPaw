@@ -1,9 +1,10 @@
 """Tests for multimodal utilities."""
-import os
 import base64
+import os
 import tempfile
-import pytest
 from pathlib import Path
+
+import pytest
 
 from copaw.agents.utils.multimodal_utils import (
     file_to_base64,
