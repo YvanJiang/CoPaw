@@ -33,6 +33,7 @@ from .routers import router as api_router
 from .routers.voice import voice_router
 from ..envs import load_envs_into_environ
 from .auth_middleware import BasicAuthMiddleware
+from ..providers.provider_manager import ProviderManager
 
 # Apply log level on load so reload child process gets same level as CLI.
 logger = setup_logger(os.environ.get(LOG_LEVEL_ENV, "info"))
@@ -127,6 +128,9 @@ async def lifespan(
                 raise
             logger.exception("Failed to start MCP watcher")
 
+    # --- Model provider manager (non-reloadable, in-memory) ---
+    provider_manager = ProviderManager.get_instance()
+
     # expose to endpoints
     app.state.runner = runner
     app.state.channel_manager = channel_manager
@@ -135,6 +139,7 @@ async def lifespan(
     app.state.config_watcher = config_watcher
     app.state.mcp_manager = mcp_manager
     app.state.mcp_watcher = mcp_watcher
+    app.state.provider_manager = provider_manager
 
     _restart_task: asyncio.Task | None = None
 
