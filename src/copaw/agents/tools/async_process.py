@@ -14,6 +14,7 @@ from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 
 from .process_manager import AsyncProcessInfo, get_manager
+from copaw.utils.notification import get_notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,8 @@ async def launch_async_process(
     command: str,
     name: Optional[str] = None,
     cwd: Optional[Path] = None,
+    notify_on_complete: bool = False,
+    notify_message: Optional[str] = None,
 ) -> ToolResponse:
     """启动异步进程并立即返回。
 
@@ -77,6 +80,10 @@ async def launch_async_process(
             进程名称，用于标识和管理。如果未提供，将使用命令的前 30 个字符作为名称。
         cwd (`Optional[Path]`, defaults to `None`):
             进程工作目录，默认为工作目录。
+        notify_on_complete (`bool`, defaults to `False`):
+            是否在进程完成时发送通知。需要设置 API_USER 和 API_PASS 环境变量。
+        notify_message (`Optional[str]`, defaults to `None`):
+            自定义通知消息。如果不设置，将使用默认消息。
 
     Returns:
         `ToolResponse`:
@@ -99,6 +106,16 @@ async def launch_async_process(
             cwd=Path("/path/to/project")
         )
         ```
+
+        启动带通知的异步任务:
+        ```
+        launch_async_process(
+            command="sleep 60 && ./long-running-task.sh",
+            name="bg-task",
+            notify_on_complete=True,
+            notify_message="后台任务已完成"
+        )
+        ```
     """
     # 生成进程名称
     if name is None:
@@ -110,6 +127,31 @@ async def launch_async_process(
     # 确保名称唯一且合法
     name = name.replace(" ", "-").replace("/", "-")
 
+    # 处理通知命令包装
+    wrapped_command = command
+    if notify_on_complete:
+        notification_service = get_notification_service()
+        if notification_service.is_configured():
+            # 构建通知消息
+            process_name = name or "异步进程"
+            default_msg = f"进程 '{process_name}' 已完成执行"
+            message = notify_message or default_msg
+
+            try:
+                notify_cmd = notification_service.build_feishu_command(
+                    message=message,
+                    source="CoPaw"
+                )
+                # 使用 && 包装命令，确保只有命令成功时才发送通知
+                wrapped_command = f"({command}) && {notify_cmd}"
+            except RuntimeError as e:
+                logger.warning("构建通知命令失败：%s", e)
+        else:
+            logger.warning(
+                "notify_on_complete=True 但通知服务未配置。"
+                "请设置 API_USER 和 API_PASS 环境变量。"
+            )
+
     try:
         # 获取管理器
         manager = get_manager()
@@ -118,19 +160,43 @@ async def launch_async_process(
         await manager.start_monitor()
 
         # 启动进程
-        proc_info = await manager.launch(command=command, name=name, cwd=cwd)
+        proc_info = await manager.launch(
+            command=wrapped_command,
+            name=name,
+            cwd=cwd
+        )
 
         # 构建响应
-        response_text = (
-            f"✅ 进程已启动\n"
-            f"- 名称：{proc_info.name}\n"
-            f"- PID: {proc_info.pid}\n"
-            f"- 命令：{proc_info.command}\n"
-            f"- 工作目录：{proc_info.cwd}\n"
-            f"\n"
+        response_lines = [
+            f"✅ 进程已启动",
+            f"- 名称：{proc_info.name}",
+            f"- PID: {proc_info.pid}",
+            f"- 命令：{command}",
+            f"- 工作目录：{proc_info.cwd}",
+        ]
+
+        # 添加通知状态
+        if notify_on_complete:
+            notification_service = get_notification_service()
+            if notification_service.is_configured():
+                response_lines.extend([
+                    f"",
+                    f"📬 通知：已启用",
+                    f"  消息：{notify_message or '默认'}"
+                ])
+            else:
+                response_lines.extend([
+                    f"",
+                    f"⚠️ 通知：未配置（请设置 API_USER 和 API_PASS）"
+                ])
+
+        response_lines.extend([
+            f"",
             f"提示：使用 view_async_processes 查看进程列表，"
             f"使用 stop_async_process 停止进程。"
-        )
+        ])
+
+        response_text = "\n".join(response_lines)
 
         return ToolResponse(
             content=[
