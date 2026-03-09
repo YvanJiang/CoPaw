@@ -362,6 +362,41 @@ async def execute_shell_command(
             standard error of the executed command. If timeout occurs, the
             return code will be -1 and stderr will contain timeout information.
     """
+    # 检查是否尝试直接调用 claude 命令
+    first_token = command.strip().split()[0] if command.strip() else ""
+    if first_token.startswith("claude"):
+        return ToolResponse(
+            content=[
+                TextBlock(
+                    type="text",
+                    text="❌ 不支持直接执行 claude 命令。"
+                    "请使用 launch_async_process 工具来启动 Claude 进程。",
+                ),
+            ],
+        )
+
+    # 检查是否尝试使用 sleep 进行系统等待
+    if first_token == "sleep" or "sleep " in command.lower():
+        error_msg = (
+            "❌ 检测到使用 sleep 命令进行系统等待。\n\n"
+            "请停止当前会话，让自己睡一觉，并改用 "
+            "launch_async_process 启动异步等待任务。\n\n"
+            "示例：\n"
+            "launch_async_process(command='sleep 60 && <your command> && "
+            "curl -u $API_USER:$API_PASS \\\n"
+            "    -X POST \"http://127.0.0.1:8088/api/v1/notify/feishu\" \\\n"
+            "    -H \"Content-Type: application/json\" \\\n"
+            "    -d '{\"message\":\"wait-task completed\",\"source\":\"wait-task\"}'', "
+            "name='wait-task')"
+        )
+        return ToolResponse(
+            content=[
+                TextBlock(
+                    type="text",
+                    text=error_msg,
+                ),
+            ],
+        )
 
     cmd = _build_command_with_env(command)
 

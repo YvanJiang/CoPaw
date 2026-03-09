@@ -358,10 +358,6 @@ class FeishuChannel(BaseChannel):
             return self._tenant_access_token
 
         async with self._token_lock:
-            # Ensure http session exists (may be None if stop() was called)
-            if self._http is None:
-                self._http = aiohttp.ClientSession()
-
             now = time.time()
             if (
                 self._tenant_access_token
@@ -1239,9 +1235,6 @@ class FeishuChannel(BaseChannel):
                 return await asyncio.to_thread(Path(path).read_bytes)
             if url.strip().lower().startswith("file:"):
                 return None
-            # Ensure http session exists
-            if self._http is None:
-                self._http = aiohttp.ClientSession()
             async with self._http.get(url) as resp:
                 if resp.status >= 400:
                     return None
