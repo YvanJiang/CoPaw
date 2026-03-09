@@ -132,7 +132,6 @@ def _create_file_block_support_formatter(
     class FileBlockSupportFormatter(base_formatter_class):
         """Formatter with file block support for tool results."""
 
-        # pylint: disable=too-many-branches
         async def _format(self, msgs):
             """Override to sanitize tool messages, handle thinking blocks,
             convert local media files to base64, and relay ``extra_content``
@@ -152,8 +151,23 @@ def _create_file_block_support_formatter(
 
             msgs = _sanitize_tool_messages(msgs)
 
-            reasoning_contents = {}
-            extra_contents: dict[str, Any] = {}
+            reasoning_contents = self._extract_reasoning_contents(msgs)
+            extra_contents = self._extract_extra_contents(msgs)
+
+            messages = await super()._format(msgs)
+
+            self._inject_extra_contents(messages, extra_contents)
+            self._inject_reasoning_contents(
+                messages, msgs, reasoning_contents
+            )
+
+            return _strip_top_level_message_name(messages)
+
+        def _extract_reasoning_contents(
+            self, msgs
+        ) -> dict[int, str]:
+            """Extract reasoning content from thinking blocks."""
+            reasoning_contents: dict[int, str] = {}
             for msg in msgs:
                 if msg.role != "assistant":
                     continue
@@ -163,45 +177,64 @@ def _create_file_block_support_formatter(
                         if thinking:
                             reasoning_contents[id(msg)] = thinking
                         break
+            return reasoning_contents
+
+        def _extract_extra_contents(
+            self, msgs
+        ) -> dict[str, Any]:
+            """Extract extra_content from tool_use blocks."""
+            extra_contents: dict[str, Any] = {}
+            for msg in msgs:
+                if msg.role != "assistant":
+                    continue
                 for block in msg.get_content_blocks():
                     if (
                         block.get("type") == "tool_use"
                         and "extra_content" in block
                     ):
                         extra_contents[block["id"]] = block["extra_content"]
+            return extra_contents
 
-            messages = await super()._format(msgs)
+        def _inject_extra_contents(
+            self,
+            messages: list[dict],
+            extra_contents: dict[str, Any],
+        ) -> None:
+            """Inject extra_content into tool_calls."""
+            if not extra_contents:
+                return
+            for message in messages:
+                for tc in message.get("tool_calls", []):
+                    ec = extra_contents.get(tc.get("id"))
+                    if ec:
+                        tc["extra_content"] = ec
 
-            if extra_contents:
-                for message in messages:
-                    for tc in message.get("tool_calls", []):
-                        ec = extra_contents.get(tc.get("id"))
-                        if ec:
-                            tc["extra_content"] = ec
-
-            if reasoning_contents:
-                in_assistant = [m for m in msgs if m.role == "assistant"]
-                out_assistant = [
-                    m for m in messages if m.get("role") == "assistant"
-                ]
-                if len(in_assistant) != len(out_assistant):
-                    logger.warning(
-                        "Assistant message count mismatch after formatting "
-                        "(%d before, %d after). "
-                        "Skipping reasoning_content injection.",
-                        len(in_assistant),
-                        len(out_assistant),
-                    )
-                else:
-                    for in_msg, out_msg in zip(
-                        in_assistant,
-                        out_assistant,
-                    ):
-                        reasoning = reasoning_contents.get(id(in_msg))
-                        if reasoning:
-                            out_msg["reasoning_content"] = reasoning
-
-            return _strip_top_level_message_name(messages)
+        def _inject_reasoning_contents(
+            self,
+            messages: list[dict],
+            msgs,
+            reasoning_contents: dict[int, str],
+        ) -> None:
+            """Inject reasoning_content into assistant messages."""
+            if not reasoning_contents:
+                return
+            in_assistant = [m for m in msgs if m.role == "assistant"]
+            out_assistant = [
+                m for m in messages if m.get("role") == "assistant"
+            ]
+            if len(in_assistant) != len(out_assistant):
+                logger.warning(
+                    "Assistant message count mismatch after formatting "
+                    "(%d before, %d after). "
+                    "Skipping reasoning_content injection.",
+                    len(in_assistant),
+                    len(out_assistant),
+                )
+                return
+            for in_msg, out_msg in zip(in_assistant, out_assistant):
+                reasoning = reasoning_contents.get(id(in_msg))
+                if reasoning:
+                    out_msg["reasoning_content"] = reasoning
 
         @staticmethod
         def convert_tool_result_to_string(
