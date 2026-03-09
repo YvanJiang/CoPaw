@@ -21,7 +21,7 @@ Security:
 - File content validation via magic numbers
 """
 # flake8: noqa: E501
-# pylint: disable=line-too-long,too-many-return-statements
+# pylint: disable=line-too-long,too-many-return-statements,too-many-branches
 import base64
 import os
 import tempfile
@@ -74,7 +74,7 @@ IMAGE_MAGIC_SIGNATURES = {
     ".jpg": (0, b"\xff\xd8\xff"),
     ".jpeg": (0, b"\xff\xd8\xff"),
     ".gif": (0, b"GIF87a"),  # Also matches GIF89a (first 6 bytes same)
-    ".webp": (8, b"WEBP"),   # RIFF header at 0, WEBP at offset 8
+    ".webp": (8, b"WEBP"),  # RIFF header at 0, WEBP at offset 8
     ".bmp": (0, b"BM"),
 }
 
@@ -92,10 +92,10 @@ VIDEO_MAGIC_SIGNATURES = {
 # Audio format magic numbers
 AUDIO_MAGIC_SIGNATURES = {
     ".mp3": (0, b"\xff\xfb"),  # MPEG-1 Layer 3
-    ".wav": (0, b"RIFF"),     # RIFF/WAVE
+    ".wav": (0, b"RIFF"),  # RIFF/WAVE
     ".aac": (0, b"\xff\xf1"),  # ADTS
     ".ogg": (0, b"OggS"),
-    ".m4a": (4, b"ftyp"),      # Same as MP4
+    ".m4a": (4, b"ftyp"),  # Same as MP4
     ".flac": (0, b"fLaC"),
     ".wma": (0, b"\x30\x26\xb2\x75"),  # Same as WMV (ASF)
 }
@@ -176,7 +176,7 @@ def _validate_media_magic(file_path: str) -> tuple[bool, str]:
             return (False, "文件过小，无法验证格式")
 
         # Check signature at expected offset
-        actual_signature = header[offset:offset + len(signature)]
+        actual_signature = header[offset : offset + len(signature)]
 
         # Special handling for formats with multiple variants
         if _check_special_format(ext, header):
@@ -187,7 +187,7 @@ def _validate_media_magic(file_path: str) -> tuple[bool, str]:
 
         return (
             False,
-            f"文件格式不匹配：文件扩展名为 {ext}，但内容不是有效的 {ext} 格式"
+            f"文件格式不匹配：文件扩展名为 {ext}，但内容不是有效的 {ext} 格式",
         )
 
     except Exception as e:
@@ -267,7 +267,7 @@ async def _fetch_http_media(url: str) -> tuple[bytes, str, str]:
 def _compress_image(
     input_path: str,
     output_path: str,
-    target_size_mb: float
+    target_size_mb: float,
 ) -> bool:
     """Compress image to target size using Pillow.
 
@@ -290,20 +290,22 @@ def _compress_image(
     try:
         with Image.open(input_path) as img:
             # Convert to RGB if necessary (handle RGBA, P, LA modes)
-            if img.mode in ('RGBA', 'LA', 'P'):
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                if img.mode == 'P':
-                    img = img.convert('RGBA')
-                if img.mode in ('RGBA', 'LA'):
+            if img.mode in ("RGBA", "LA", "P"):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                if img.mode == "P":
+                    img = img.convert("RGBA")
+                if img.mode in ("RGBA", "LA"):
                     background.paste(
                         img,
-                        mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None
+                        mask=img.split()[-1]
+                        if img.mode in ("RGBA", "LA")
+                        else None,
                     )
                     img = background
                 else:
-                    img = img.convert('RGB')
-            elif img.mode != 'RGB':
-                img = img.convert('RGB')
+                    img = img.convert("RGB")
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
 
             # Try reducing quality first
             while quality >= 20:
@@ -316,9 +318,17 @@ def _compress_image(
             if os.path.getsize(output_path) > target_bytes:
                 ratio = 0.8
                 while ratio > 0.3:
-                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    new_size = (
+                        int(img.width * ratio),
+                        int(img.height * ratio),
+                    )
                     resized = img.resize(new_size, Image.Resampling.LANCZOS)
-                    resized.save(output_path, "JPEG", optimize=True, quality=75)
+                    resized.save(
+                        output_path,
+                        "JPEG",
+                        optimize=True,
+                        quality=75,
+                    )
                     if os.path.getsize(output_path) <= target_bytes:
                         return True
                     ratio -= 0.1
@@ -332,7 +342,7 @@ async def _compress_video(
     input_path: str,
     output_path: str,
     target_size_mb: float,
-    fps: int = 1
+    fps: int = 1,
 ) -> bool:
     """Compress video using FFmpeg with optional frame extraction.
 
@@ -354,13 +364,20 @@ async def _compress_video(
     cmd = [
         "ffmpeg",
         "-y",  # Overwrite output
-        "-i", input_path,
-        "-c:v", "libx264",
-        "-crf", str(crf),
-        "-preset", "slow",  # Better compression ratio
-        "-c:a", "aac",      # Audio codec
-        "-b:a", "64k",      # Low audio bitrate
-        "-movflags", "+faststart",
+        "-i",
+        input_path,
+        "-c:v",
+        "libx264",
+        "-crf",
+        str(crf),
+        "-preset",
+        "slow",  # Better compression ratio
+        "-c:a",
+        "aac",  # Audio codec
+        "-b:a",
+        "64k",  # Low audio bitrate
+        "-movflags",
+        "+faststart",
     ]
 
     # Add frame rate filter if specified
@@ -374,7 +391,7 @@ async def _compress_video(
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         _, _ = await process.communicate()
 
@@ -407,6 +424,232 @@ def _get_file_category(file_path: str) -> str:
     elif ext in AUDIO_EXTENSIONS:
         return "audio"
     return "unknown"
+
+
+def _create_media_block(
+    category: str,
+    media_type: str,
+    base64_data: str,
+) -> ImageBlock | VideoBlock | AudioBlock:
+    """Create appropriate media block based on category.
+
+    Args:
+        category: File category ("image", "video", "audio").
+        media_type: MIME type of the media.
+        base64_data: Base64-encoded media data.
+
+    Returns:
+        ImageBlock, VideoBlock, or AudioBlock.
+    """
+    source = {
+        "type": "base64",
+        "media_type": media_type,
+        "data": base64_data,
+    }
+    if category == "image":
+        return ImageBlock(type="image", source=source)
+    elif category == "video":
+        return VideoBlock(type="video", source=source)
+    else:  # audio
+        return AudioBlock(type="audio", source=source)
+
+
+async def _handle_http_media(url: str) -> ToolResponse:
+    """Handle media fetching from HTTP URL.
+
+    Args:
+        url: HTTP(S) URL to fetch media from.
+
+    Returns:
+        ToolResponse with media block or error.
+    """
+    media_data, media_type, error = await _fetch_http_media(url)
+    if error:
+        return ToolResponse(
+            content=[TextBlock(type="text", text=f"错误: {error}")],
+        )
+
+    base64_data = base64.b64encode(media_data).decode("utf-8")
+
+    if media_type.startswith("image/"):
+        block = ImageBlock(
+            type="image",
+            source={
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_data,
+            },
+        )
+    elif media_type.startswith("video/"):
+        block = VideoBlock(
+            type="video",
+            source={
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_data,
+            },
+        )
+    elif media_type.startswith("audio/"):
+        block = AudioBlock(
+            type="audio",
+            source={
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_data,
+            },
+        )
+    else:
+        return ToolResponse(
+            content=[
+                TextBlock(
+                    type="text",
+                    text=f"错误: 不支持的媒体类型: {media_type}",
+                ),
+            ],
+        )
+
+    return ToolResponse(content=[block])
+
+
+def _validate_local_file(file_path: str) -> tuple[bool, str]:
+    """Validate local file path and return resolved path or error.
+
+    Args:
+        file_path: Path to validate.
+
+    Returns:
+        Tuple of (is_valid, resolved_path_or_error).
+    """
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
+
+    if not os.path.lexists(file_path):
+        return False, f"错误：文件不存在：{file_path}"
+
+    if os.path.islink(file_path) and not os.path.exists(file_path):
+        return False, f"错误：符号链接指向不存在的位置：{file_path}"
+
+    file_path = os.path.realpath(file_path)
+
+    if not os.path.isfile(file_path):
+        return False, f"错误：路径不是文件：{file_path}"
+
+    return True, file_path
+
+
+def _check_file_validity(file_path: str) -> tuple[bool, str]:
+    """Check file format and size validity.
+
+    Args:
+        file_path: Path to the file.
+
+    Returns:
+        Tuple of (is_valid, media_type_or_error).
+    """
+    media_type = _get_media_type(file_path)
+    if not media_type:
+        supported = ", ".join(SUPPORTED_FORMATS.keys())
+        return False, f"错误：不支持的媒体格式。支持的格式：{supported}"
+
+    is_valid, error = _validate_media_magic(file_path)
+    if not is_valid:
+        return False, f"错误：{error}"
+
+    file_size = os.path.getsize(file_path)
+    if file_size > MAX_FILE_SIZE:
+        size_mb = file_size / (1024 * 1024)
+        return False, f"错误：文件过大 ({size_mb:.2f}MB)，最大允许 20MB。"
+
+    return True, media_type
+
+
+def _compress_image_file(
+    file_path: str,
+    max_size_mb: float,
+) -> tuple[str | None, bool]:
+    """Compress image file and return temp path.
+
+    Args:
+        file_path: Path to image file.
+        max_size_mb: Target max size in MB.
+
+    Returns:
+        Tuple of (temp_file_path, was_compressed).
+    """
+    fd, temp_file = tempfile.mkstemp(suffix=".jpg")
+    os.close(fd)
+
+    if _compress_image(file_path, temp_file, max_size_mb):
+        return temp_file, True
+    os.unlink(temp_file)
+    return None, False
+
+
+async def _compress_video_file(
+    file_path: str,
+    max_size_mb: float,
+    video_fps: int,
+) -> tuple[str | None, bool]:
+    """Compress video file and return temp path.
+
+    Args:
+        file_path: Path to video file.
+        max_size_mb: Target max size in MB.
+        video_fps: Frame rate for compression.
+
+    Returns:
+        Tuple of (temp_file_path, was_compressed).
+    """
+    fd, temp_file = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+
+    if await _compress_video(file_path, temp_file, max_size_mb, video_fps):
+        return temp_file, True
+    os.unlink(temp_file)
+    return None, False
+
+
+async def _compress_file_if_needed(
+    file_path: str,
+    category: str,
+    compress: bool,
+    max_size_mb: float,
+    video_fps: int,
+) -> tuple[str, bool, str | None]:
+    """Compress file if needed and return path to use.
+
+    Args:
+        file_path: Original file path.
+        category: File category.
+        compress: Whether compression is enabled.
+        max_size_mb: Target max size in MB.
+        video_fps: Video frame rate for compression.
+
+    Returns:
+        Tuple of (file_to_read, was_compressed, temp_file_path).
+    """
+    file_size = os.path.getsize(file_path)
+    if not compress or file_size <= max_size_mb * 1024 * 1024:
+        return file_path, False, None
+
+    temp_file: str | None = None
+    was_compressed = False
+
+    if category == "image":
+        temp_file, was_compressed = _compress_image_file(
+            file_path,
+            max_size_mb,
+        )
+    elif category == "video":
+        temp_file, was_compressed = await _compress_video_file(
+            file_path,
+            max_size_mb,
+            video_fps,
+        )
+
+    if was_compressed and temp_file:
+        return temp_file, True, temp_file
+    return file_path, False, None
 
 
 async def read_media(
@@ -460,201 +703,55 @@ async def read_media(
     """
     if not source:
         return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text="错误: 未提供媒体文件来源。",
-                ),
-            ],
+            content=[TextBlock(type="text", text="错误: 未提供媒体文件来源。")],
         )
 
     source_type, parsed_source, error = _parse_source(source)
     if error:
         return ToolResponse(
-            content=[
-                TextBlock(type="text", text=f"错误: {error}"),
-            ],
+            content=[TextBlock(type="text", text=f"错误: {error}")],
         )
 
     # Handle HTTP URLs
     if source_type == "http_url":
-        media_data, media_type, error = await _fetch_http_media(parsed_source)
-        if error:
+        if parsed_source is None:
             return ToolResponse(
-                content=[
-                    TextBlock(type="text", text=f"错误: {error}"),
-                ],
+                content=[TextBlock(type="text", text="错误: 无效的 URL")],
             )
-
-        # Encode to base64
-        base64_data = base64.b64encode(media_data).decode("utf-8")
-
-        # Try to determine block type from media_type
-        if media_type.startswith("image/"):
-            block = ImageBlock(
-                type="image",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        elif media_type.startswith("video/"):
-            block = VideoBlock(
-                type="video",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        elif media_type.startswith("audio/"):
-            block = AudioBlock(
-                type="audio",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        else:
-            return ToolResponse(
-                content=[
-                    TextBlock(
-                        type="text",
-                        text=f"错误: 不支持的媒体类型: {media_type}"
-                    ),
-                ],
-            )
-
-        return ToolResponse(content=[block])
+        return await _handle_http_media(parsed_source)
 
     # Handle local files and file:// URLs
     file_path = parsed_source
     if file_path is None:
         return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text="错误：无法解析媒体文件来源",
-                ),
-            ],
+            content=[TextBlock(type="text", text="错误：无法解析媒体文件来源")],
         )
 
-    # Resolve to absolute path
-    if not os.path.isabs(file_path):
-        file_path = os.path.abspath(file_path)
-
-    # Check file exists
-    if not os.path.lexists(file_path):
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：文件不存在：{file_path}",
-                ),
-            ],
-        )
-
-    # Check for broken symlinks
-    if os.path.islink(file_path) and not os.path.exists(file_path):
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：符号链接指向不存在的位置：{file_path}",
-                ),
-            ],
-        )
-
-    # Resolve symlinks
-    file_path = os.path.realpath(file_path)
-
-    if not os.path.isfile(file_path):
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：路径不是文件：{file_path}",
-                ),
-            ],
-        )
-
-    # Check file format (extension)
-    media_type = _get_media_type(file_path)
-    if not media_type:
-        supported = ", ".join(SUPPORTED_FORMATS.keys())
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：不支持的媒体格式。支持的格式：{supported}",
-                ),
-            ],
-        )
-
-    # Validate file content matches expected format
-    is_valid, error = _validate_media_magic(file_path)
+    # Validate local file
+    is_valid, result = _validate_local_file(file_path)
     if not is_valid:
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：{error}",
-                ),
-            ],
-        )
+        return ToolResponse(content=[TextBlock(type="text", text=result)])
+    file_path = result
 
-    # Check file size
-    file_size = os.path.getsize(file_path)
-    if file_size > MAX_FILE_SIZE:
-        size_mb = file_size / (1024 * 1024)
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误：文件过大 ({size_mb:.2f}MB)，最大允许 20MB。",
-                ),
-            ],
-        )
+    # Check file format and size
+    is_valid, result = _check_file_validity(file_path)
+    if not is_valid:
+        return ToolResponse(content=[TextBlock(type="text", text=result)])
+    media_type = result
 
     # Determine file category
     category = _get_file_category(file_path)
 
-    # Handle compression if enabled and file is large
-    file_to_read = file_path
-    was_compressed = False
-    temp_file = None
-
-    if compress and file_size > max_size_mb * 1024 * 1024:
-        if category == "image":
-            # Create temp file for compressed image
-            fd, temp_file = tempfile.mkstemp(suffix=".jpg")
-            os.close(fd)
-
-            if _compress_image(file_path, temp_file, max_size_mb):
-                file_to_read = temp_file
-                was_compressed = True
-            else:
-                # Compression failed, use original
-                os.unlink(temp_file)
-                temp_file = None
-
-        elif category == "video":
-            # Create temp file for compressed video
-            fd, temp_file = tempfile.mkstemp(suffix=".mp4")
-            os.close(fd)
-
-            if await _compress_video(file_path, temp_file, max_size_mb, video_fps):
-                file_to_read = temp_file
-                was_compressed = True
-                # Update media type for compressed video
-                media_type = "video/mp4"
-            else:
-                # Compression failed, use original
-                os.unlink(temp_file)
-                temp_file = None
-        # Audio compression not implemented yet
+    # Compress if needed
+    file_to_read, was_compressed, temp_file = await _compress_file_if_needed(
+        file_path,
+        category,
+        compress,
+        max_size_mb,
+        video_fps,
+    )
+    if was_compressed and category == "video":
+        media_type = "video/mp4"
 
     try:
         # Read and encode file
@@ -665,60 +762,24 @@ async def read_media(
 
         # Build info text
         final_size_mb = len(media_data) / (1024 * 1024)
-        info_text = f"已加载媒体文件: {os.path.basename(source)} ({final_size_mb:.2f}MB)"
+        info_text = (
+            f"已加载媒体文件: {os.path.basename(source)} ({final_size_mb:.2f}MB)"
+        )
         if was_compressed:
             info_text += " [已压缩]"
         if category == "video" and video_fps != 1 and video_fps > 0:
             info_text += f" [抽帧: {video_fps}fps]"
 
-        # Create appropriate block based on category
-        if category == "image":
-            block = ImageBlock(
-                type="image",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        elif category == "video":
-            block = VideoBlock(
-                type="video",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        elif category == "audio":
-            block = AudioBlock(
-                type="audio",
-                source={
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64_data,
-                },
-            )
-        else:
-            return ToolResponse(
-                content=[
-                    TextBlock(type="text", text="错误：无法识别的媒体类型"),
-                ],
-            )
+        # Create block
+        block = _create_media_block(category, media_type, base64_data)
 
-        return ToolResponse(content=[
-            TextBlock(type="text", text=info_text),
-            block,
-        ])
+        return ToolResponse(
+            content=[TextBlock(type="text", text=info_text), block],
+        )
 
     except Exception as e:
         return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"错误: 读取文件失败: {e}",
-                ),
-            ],
+            content=[TextBlock(type="text", text=f"错误: 读取文件失败: {e}")],
         )
     finally:
         # Clean up temp file if created

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Integration tests for multimodal data flow from channel to formatter."""
 import base64
 import os
@@ -26,7 +27,7 @@ class TestMultimodalEndToEnd:
         try:
             # Step 1: Simulate channel creating content with local path
             content_blocks = [
-                {"type": "image", "source": {"type": "url", "url": temp_path}}
+                {"type": "image", "source": {"type": "url", "url": temp_path}},
             ]
 
             # Step 2: Convert to base64 (simulating formatter behavior)
@@ -43,7 +44,7 @@ class TestMultimodalEndToEnd:
 
             # Step 4: Test formatter integration
             formatter_class = _create_file_block_support_formatter(
-                OpenAIChatFormatter
+                OpenAIChatFormatter,
             )
             formatter = formatter_class()
 
@@ -54,7 +55,9 @@ class TestMultimodalEndToEnd:
             mock_msg.name = "test"
 
             with patch.object(
-                OpenAIChatFormatter, "_format", new_callable=AsyncMock
+                OpenAIChatFormatter,
+                "_format",
+                new_callable=AsyncMock,
             ) as mock_parent:
                 mock_parent.return_value = [{"role": "user", "content": []}]
                 await formatter._format([mock_msg])
@@ -77,7 +80,7 @@ class TestMultimodalEndToEnd:
                     "type": "url",
                     "url": "https://example.com/image.png",
                 },
-            }
+            },
         ]
 
         # Conversion should not change HTTP URLs
@@ -91,7 +94,7 @@ class TestMultimodalEndToEnd:
 
         # Test formatter also keeps it unchanged
         formatter_class = _create_file_block_support_formatter(
-            OpenAIChatFormatter
+            OpenAIChatFormatter,
         )
         formatter = formatter_class()
 
@@ -102,7 +105,9 @@ class TestMultimodalEndToEnd:
         mock_msg.name = "test"
 
         with patch.object(
-            OpenAIChatFormatter, "_format", new_callable=AsyncMock
+            OpenAIChatFormatter,
+            "_format",
+            new_callable=AsyncMock,
         ) as mock_parent:
             mock_parent.return_value = [{"role": "user", "content": []}]
             await formatter._format([mock_msg])
@@ -118,8 +123,12 @@ class TestMultimodalEndToEnd:
     def test_mixed_content_blocks(self):
         """Test handling mixed content with text, images, and audio."""
         with tempfile.NamedTemporaryFile(
-            suffix=".png", delete=False
-        ) as f1, tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f2:
+            suffix=".png",
+            delete=False,
+        ) as f1, tempfile.NamedTemporaryFile(
+            suffix=".mp3",
+            delete=False,
+        ) as f2:
             f1.write(b"\x89PNG\r\n\x1a\n")
             f2.write(b"fake mp3 data")
             img_path = f1.name
@@ -175,7 +184,7 @@ class TestMultimodalEndToEnd:
         try:
             file_url = f"file://{temp_path}"
             content_blocks = [
-                {"type": "image", "source": {"type": "url", "url": file_url}}
+                {"type": "image", "source": {"type": "url", "url": file_url}},
             ]
 
             # Convert

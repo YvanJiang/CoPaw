@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for message_processing utilities."""
 import os
 import tempfile
@@ -29,7 +30,10 @@ class TestUpdateBlockWithLocalPath:
 
             # With convert_to_base64=True
             result = _update_block_with_local_path(
-                block, "image", temp_path, convert_to_base64=True
+                block,
+                "image",
+                temp_path,
+                convert_to_base64=True,
             )
 
             assert result["source"]["type"] == "base64"
@@ -39,7 +43,10 @@ class TestUpdateBlockWithLocalPath:
             os.unlink(temp_path)
 
     def test_image_block_keeps_file_url(self):
-        """Test that image blocks can keep file:// URL (backward compatible)."""
+        """Test that image blocks can keep file:// URL (backward compatible).
+
+        This ensures backward compatibility with file:// URL handling.
+        """
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             f.write(b"\x89PNG\r\n\x1a\nfake png data")
             temp_path = f.name
@@ -55,7 +62,10 @@ class TestUpdateBlockWithLocalPath:
 
             # With convert_to_base64=False (default)
             result = _update_block_with_local_path(
-                block, "image", temp_path, convert_to_base64=False
+                block,
+                "image",
+                temp_path,
+                convert_to_base64=False,
             )
 
             assert result["source"]["type"] == "url"
@@ -79,7 +89,10 @@ class TestUpdateBlockWithLocalPath:
             }
 
             result = _update_block_with_local_path(
-                block, "audio", temp_path, convert_to_base64=True
+                block,
+                "audio",
+                temp_path,
+                convert_to_base64=True,
             )
 
             assert result["source"]["type"] == "base64"
@@ -101,7 +114,10 @@ class TestUpdateBlockWithLocalPath:
             }
 
             result = _update_block_with_local_path(
-                block, "file", temp_path, convert_to_base64=True
+                block,
+                "file",
+                temp_path,
+                convert_to_base64=True,
             )
 
             # File blocks should just store the local path

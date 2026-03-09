@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for model factory and FileBlockSupportFormatter."""
 import os
 import tempfile
@@ -18,7 +19,7 @@ class TestFileBlockSupportFormatterMultimodal:
     def formatter(self):
         """Create a formatter instance for testing."""
         formatter_class = _create_file_block_support_formatter(
-            OpenAIChatFormatter
+            OpenAIChatFormatter,
         )
         return formatter_class()
 
@@ -36,17 +37,19 @@ class TestFileBlockSupportFormatterMultimodal:
             mock_msg = Mock()
             mock_msg.role = "user"
             mock_msg.content = [
-                {"type": "image", "source": {"type": "url", "url": temp_path}}
+                {"type": "image", "source": {"type": "url", "url": temp_path}},
             ]
             mock_msg.get_content_blocks.return_value = mock_msg.content
             mock_msg.name = "test"
 
             # Mock parent _format to capture what's passed to it
             with patch.object(
-                OpenAIChatFormatter, "_format", new_callable=AsyncMock
+                OpenAIChatFormatter,
+                "_format",
+                new_callable=AsyncMock,
             ) as mock_parent_format:
                 mock_parent_format.return_value = [
-                    {"role": "user", "content": []}
+                    {"role": "user", "content": []},
                 ]
 
                 await formatter._format([mock_msg])
@@ -78,16 +81,18 @@ class TestFileBlockSupportFormatterMultimodal:
                     "type": "url",
                     "url": "https://example.com/image.png",
                 },
-            }
+            },
         ]
         mock_msg.get_content_blocks.return_value = mock_msg.content
         mock_msg.name = "test"
 
         with patch.object(
-            OpenAIChatFormatter, "_format", new_callable=AsyncMock
+            OpenAIChatFormatter,
+            "_format",
+            new_callable=AsyncMock,
         ) as mock_parent_format:
             mock_parent_format.return_value = [
-                {"role": "user", "content": []}
+                {"role": "user", "content": []},
             ]
 
             await formatter._format([mock_msg])
@@ -100,8 +105,7 @@ class TestFileBlockSupportFormatterMultimodal:
             assert content[0]["type"] == "image"
             assert content[0]["source"]["type"] == "url"
             assert (
-                content[0]["source"]["url"]
-                == "https://example.com/image.png"
+                content[0]["source"]["url"] == "https://example.com/image.png"
             )
 
     @pytest.mark.asyncio
@@ -118,16 +122,18 @@ class TestFileBlockSupportFormatterMultimodal:
             mock_msg = Mock()
             mock_msg.role = "user"
             mock_msg.content = [
-                {"type": "image", "source": {"type": "url", "url": file_url}}
+                {"type": "image", "source": {"type": "url", "url": file_url}},
             ]
             mock_msg.get_content_blocks.return_value = mock_msg.content
             mock_msg.name = "test"
 
             with patch.object(
-                OpenAIChatFormatter, "_format", new_callable=AsyncMock
+                OpenAIChatFormatter,
+                "_format",
+                new_callable=AsyncMock,
             ) as mock_parent_format:
                 mock_parent_format.return_value = [
-                    {"role": "user", "content": []}
+                    {"role": "user", "content": []},
                 ]
 
                 await formatter._format([mock_msg])
@@ -145,8 +151,12 @@ class TestFileBlockSupportFormatterMultimodal:
     async def test_handles_multiple_media_blocks(self, formatter):
         """Test handling multiple media blocks in one message."""
         with tempfile.NamedTemporaryFile(
-            suffix=".png", delete=False
-        ) as f1, tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f2:
+            suffix=".png",
+            delete=False,
+        ) as f1, tempfile.NamedTemporaryFile(
+            suffix=".jpg",
+            delete=False,
+        ) as f2:
             f1.write(b"\x89PNG\r\n\x1a\nfake png")
             f2.write(b"\xff\xd8\xfffake jpeg")
             temp_path1 = f1.name
@@ -177,10 +187,12 @@ class TestFileBlockSupportFormatterMultimodal:
             mock_msg.name = "test"
 
             with patch.object(
-                OpenAIChatFormatter, "_format", new_callable=AsyncMock
+                OpenAIChatFormatter,
+                "_format",
+                new_callable=AsyncMock,
             ) as mock_parent_format:
                 mock_parent_format.return_value = [
-                    {"role": "user", "content": []}
+                    {"role": "user", "content": []},
                 ]
 
                 await formatter._format([mock_msg])
@@ -229,9 +241,7 @@ class TestMonkeyPatchBehavior:
         )
 
         # Already a path
-        assert (
-            _file_url_to_path("/path/to/image.png") == "/path/to/image.png"
-        )
+        assert _file_url_to_path("/path/to/image.png") == "/path/to/image.png"
 
         # HTTP URL unchanged
         assert (

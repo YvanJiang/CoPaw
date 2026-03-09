@@ -114,6 +114,162 @@ def _get_formatter_for_chat_model(
     )
 
 
+def _extract_reasoning_contents(msgs) -> dict[int, str]:
+    """Extract reasoning content from thinking blocks.
+
+    Args:
+        msgs: List of messages to process.
+
+    Returns:
+        Dict mapping message id to reasoning content.
+    """
+    reasoning_contents: dict[int, str] = {}
+    for msg in msgs:
+        if msg.role != "assistant":
+            continue
+        for block in msg.get_content_blocks():
+            if block.get("type") == "thinking":
+                thinking = block.get("thinking", "")
+                if thinking:
+                    reasoning_contents[id(msg)] = thinking
+                break
+    return reasoning_contents
+
+
+def _extract_extra_contents(msgs) -> dict[str, Any]:
+    """Extract extra_content from tool_use blocks.
+
+    Args:
+        msgs: List of messages to process.
+
+    Returns:
+        Dict mapping block id to extra content.
+    """
+    extra_contents: dict[str, Any] = {}
+    for msg in msgs:
+        if msg.role != "assistant":
+            continue
+        for block in msg.get_content_blocks():
+            if block.get("type") == "tool_use" and "extra_content" in block:
+                extra_contents[block["id"]] = block["extra_content"]
+    return extra_contents
+
+
+def _inject_extra_contents(
+    messages: list[dict],
+    extra_contents: dict[str, Any],
+) -> None:
+    """Inject extra_content into tool_calls.
+
+    Args:
+        messages: Formatted messages to inject into.
+        extra_contents: Dict of extra contents by block id.
+    """
+    if not extra_contents:
+        return
+    for message in messages:
+        for tc in message.get("tool_calls", []):
+            ec = extra_contents.get(tc.get("id"))
+            if ec:
+                tc["extra_content"] = ec
+
+
+def _inject_reasoning_contents(
+    messages: list[dict],
+    msgs,
+    reasoning_contents: dict[int, str],
+) -> None:
+    """Inject reasoning_content into assistant messages.
+
+    Args:
+        messages: Formatted messages to inject into.
+        msgs: Original messages for matching.
+        reasoning_contents: Dict of reasoning content by message id.
+    """
+    if not reasoning_contents:
+        return
+    in_assistant = [m for m in msgs if m.role == "assistant"]
+    out_assistant = [m for m in messages if m.get("role") == "assistant"]
+    if len(in_assistant) != len(out_assistant):
+        logger.warning(
+            "Assistant message count mismatch after formatting "
+            "(%d before, %d after). "
+            "Skipping reasoning_content injection.",
+            len(in_assistant),
+            len(out_assistant),
+        )
+        return
+    for in_msg, out_msg in zip(in_assistant, out_assistant):
+        reasoning = reasoning_contents.get(id(in_msg))
+        if reasoning:
+            out_msg["reasoning_content"] = reasoning
+
+
+def _convert_tool_result_with_file_blocks(
+    base_formatter_class: Type[FormatterBase],
+    output: str | list[dict],
+) -> tuple[str, Sequence[Tuple[str, dict]]]:
+    """Convert tool result to string, handling file blocks.
+
+    Args:
+        base_formatter_class: Base formatter class for delegation.
+        output: Tool result output (string or list of blocks).
+
+    Returns:
+        Tuple of (text_representation, multimodal_data).
+    """
+    if isinstance(output, str):
+        return output, []
+
+    # Try parent class method first
+    try:
+        return base_formatter_class.convert_tool_result_to_string(output)
+    except ValueError as e:
+        if "Unsupported block type: file" not in str(e):
+            raise
+
+        # Handle output containing file blocks
+        textual_output = []
+        multimodal_data = []
+
+        for block in output:
+            if not isinstance(block, dict) or "type" not in block:
+                raise ValueError(
+                    f"Invalid block: {block}, "
+                    "expected a dict with 'type' key",
+                ) from e
+
+            if block["type"] == "file":
+                file_path = block.get("path", "") or block.get("url", "")
+                file_name = block.get("name", file_path)
+
+                textual_output.append(
+                    f"The returned file '{file_name}' "
+                    f"can be found at: {file_path}",
+                )
+                multimodal_data.append((file_path, block))
+            else:
+                # Delegate other block types to parent class
+                (
+                    text,
+                    data,
+                ) = base_formatter_class.convert_tool_result_to_string(
+                    [block],
+                )
+                textual_output.append(text)
+                multimodal_data.extend(data)
+
+        if len(textual_output) == 0:
+            return "", multimodal_data
+        elif len(textual_output) == 1:
+            return textual_output[0], multimodal_data
+        else:
+            return (
+                "\n".join("- " + _ for _ in textual_output),
+                multimodal_data,
+            )
+
+
 def _create_file_block_support_formatter(
     base_formatter_class: Type[FormatterBase],
 ) -> Type[FormatterBase]:
@@ -123,10 +279,10 @@ def _create_file_block_support_formatter(
     in tool results, which are not natively supported by AgentScope.
 
     Args:
-        base_formatter_class: Base formatter class to extend
+        base_formatter_class: Base formatter class to extend.
 
     Returns:
-        Enhanced formatter class with file block support
+        Enhanced formatter class with file block support.
     """
 
     class FileBlockSupportFormatter(base_formatter_class):
@@ -151,90 +307,15 @@ def _create_file_block_support_formatter(
 
             msgs = _sanitize_tool_messages(msgs)
 
-            reasoning_contents = self._extract_reasoning_contents(msgs)
-            extra_contents = self._extract_extra_contents(msgs)
+            reasoning_contents = _extract_reasoning_contents(msgs)
+            extra_contents = _extract_extra_contents(msgs)
 
             messages = await super()._format(msgs)
 
-            self._inject_extra_contents(messages, extra_contents)
-            self._inject_reasoning_contents(
-                messages, msgs, reasoning_contents
-            )
+            _inject_extra_contents(messages, extra_contents)
+            _inject_reasoning_contents(messages, msgs, reasoning_contents)
 
             return _strip_top_level_message_name(messages)
-
-        def _extract_reasoning_contents(
-            self, msgs
-        ) -> dict[int, str]:
-            """Extract reasoning content from thinking blocks."""
-            reasoning_contents: dict[int, str] = {}
-            for msg in msgs:
-                if msg.role != "assistant":
-                    continue
-                for block in msg.get_content_blocks():
-                    if block.get("type") == "thinking":
-                        thinking = block.get("thinking", "")
-                        if thinking:
-                            reasoning_contents[id(msg)] = thinking
-                        break
-            return reasoning_contents
-
-        def _extract_extra_contents(
-            self, msgs
-        ) -> dict[str, Any]:
-            """Extract extra_content from tool_use blocks."""
-            extra_contents: dict[str, Any] = {}
-            for msg in msgs:
-                if msg.role != "assistant":
-                    continue
-                for block in msg.get_content_blocks():
-                    if (
-                        block.get("type") == "tool_use"
-                        and "extra_content" in block
-                    ):
-                        extra_contents[block["id"]] = block["extra_content"]
-            return extra_contents
-
-        def _inject_extra_contents(
-            self,
-            messages: list[dict],
-            extra_contents: dict[str, Any],
-        ) -> None:
-            """Inject extra_content into tool_calls."""
-            if not extra_contents:
-                return
-            for message in messages:
-                for tc in message.get("tool_calls", []):
-                    ec = extra_contents.get(tc.get("id"))
-                    if ec:
-                        tc["extra_content"] = ec
-
-        def _inject_reasoning_contents(
-            self,
-            messages: list[dict],
-            msgs,
-            reasoning_contents: dict[int, str],
-        ) -> None:
-            """Inject reasoning_content into assistant messages."""
-            if not reasoning_contents:
-                return
-            in_assistant = [m for m in msgs if m.role == "assistant"]
-            out_assistant = [
-                m for m in messages if m.get("role") == "assistant"
-            ]
-            if len(in_assistant) != len(out_assistant):
-                logger.warning(
-                    "Assistant message count mismatch after formatting "
-                    "(%d before, %d after). "
-                    "Skipping reasoning_content injection.",
-                    len(in_assistant),
-                    len(out_assistant),
-                )
-                return
-            for in_msg, out_msg in zip(in_assistant, out_assistant):
-                reasoning = reasoning_contents.get(id(in_msg))
-                if reasoning:
-                    out_msg["reasoning_content"] = reasoning
 
         @staticmethod
         def convert_tool_result_to_string(
@@ -245,66 +326,15 @@ def _create_file_block_support_formatter(
             Uses try-first strategy for compatibility with parent class.
 
             Args:
-                output: Tool result output (string or list of blocks)
+                output: Tool result output (string or list of blocks).
 
             Returns:
-                Tuple of (text_representation, multimodal_data)
+                Tuple of (text_representation, multimodal_data).
             """
-            if isinstance(output, str):
-                return output, []
-
-            # Try parent class method first
-            try:
-                return base_formatter_class.convert_tool_result_to_string(
-                    output,
-                )
-            except ValueError as e:
-                if "Unsupported block type: file" not in str(e):
-                    raise
-
-                # Handle output containing file blocks
-                textual_output = []
-                multimodal_data = []
-
-                for block in output:
-                    if not isinstance(block, dict) or "type" not in block:
-                        raise ValueError(
-                            f"Invalid block: {block}, "
-                            "expected a dict with 'type' key",
-                        ) from e
-
-                    if block["type"] == "file":
-                        file_path = block.get("path", "") or block.get(
-                            "url",
-                            "",
-                        )
-                        file_name = block.get("name", file_path)
-
-                        textual_output.append(
-                            f"The returned file '{file_name}' "
-                            f"can be found at: {file_path}",
-                        )
-                        multimodal_data.append((file_path, block))
-                    else:
-                        # Delegate other block types to parent class
-                        (
-                            text,
-                            data,
-                        ) = base_formatter_class.convert_tool_result_to_string(
-                            [block],
-                        )
-                        textual_output.append(text)
-                        multimodal_data.extend(data)
-
-                if len(textual_output) == 0:
-                    return "", multimodal_data
-                elif len(textual_output) == 1:
-                    return textual_output[0], multimodal_data
-                else:
-                    return (
-                        "\n".join("- " + _ for _ in textual_output),
-                        multimodal_data,
-                    )
+            return _convert_tool_result_with_file_blocks(
+                base_formatter_class,
+                output,
+            )
 
     FileBlockSupportFormatter.__name__ = (
         f"FileBlockSupport{base_formatter_class.__name__}"

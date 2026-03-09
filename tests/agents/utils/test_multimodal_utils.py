@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for multimodal utilities."""
 import base64
 import os
@@ -120,7 +121,11 @@ class TestConvertImageSourceToBase64:
 
     def test_keeps_base64_unchanged(self):
         """Test that base64 sources are kept as-is."""
-        source = {"type": "base64", "media_type": "image/png", "data": "ABC123"}
+        source = {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": "ABC123",
+        }
         result = convert_image_source_to_base64(source)
         assert result == source
 
@@ -136,7 +141,7 @@ class TestConvertMediaBlocksToBase64:
 
         try:
             blocks = [
-                {"type": "image", "source": {"type": "url", "url": temp_path}}
+                {"type": "image", "source": {"type": "url", "url": temp_path}},
             ]
             result = convert_media_blocks_to_base64(blocks)
             assert result[0]["source"]["type"] == "base64"

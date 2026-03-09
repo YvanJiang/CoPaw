@@ -33,7 +33,7 @@ def sample_png(temp_dir: Path):
     """Create a sample PNG file for testing."""
     # Minimal valid PNG (1x1 transparent pixel)
     png_data = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",  # noqa: E501
     )
     png_path = temp_dir / "test.png"
     png_path.write_bytes(png_data)
@@ -47,10 +47,11 @@ def sample_jpg(temp_dir: Path):
     jpg_data = base64.b64decode(
         "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP///////////////////////////////////"
         "////////////////////////////////////////////////////////////////"
-        "/////////////////////////////////////////////////////////////wAALCAACAgBARE"
+        "////////////////////////////////////////////////wAALCA"
+        "ACAgBARE"
         "A/8QAFQAAAQUBAQEAAAAAAAAAAAAAAAIDAQQFBgcICf/aAAgBAQABBQKb"
         "pqD/2gAIAQAAAQUFpmmo/9oACAEBAAEFAlD/2gAIAQIBAQFwUf/aAAgBAwEB"
-        "AXBR/9oADAMBEQCEAaEAAX//2Q=="
+        "AXBR/9oADAMBEQCEAaEAAX//2Q==",
     )
     jpg_path = temp_dir / "test.jpg"
     jpg_path.write_bytes(jpg_data)
@@ -150,7 +151,7 @@ class TestParseSource:
     def test_http_url(self):
         """Test HTTP URL parsing."""
         source_type, parsed, error = _parse_source(
-            "http://example.com/image.png"
+            "http://example.com/image.png",
         )
         assert source_type == "http_url"
         assert parsed == "http://example.com/image.png"
@@ -159,7 +160,7 @@ class TestParseSource:
     def test_https_url(self):
         """Test HTTPS URL parsing."""
         source_type, parsed, error = _parse_source(
-            "https://example.com/video.mp4"
+            "https://example.com/video.mp4",
         )
         assert source_type == "http_url"
         assert parsed == "https://example.com/video.mp4"
@@ -168,7 +169,7 @@ class TestParseSource:
     def test_file_url(self):
         """Test file:// URL parsing."""
         source_type, parsed, error = _parse_source(
-            "file:///Users/test/media.mp3"
+            "file:///Users/test/media.mp3",
         )
         assert source_type == "file_url"
         assert parsed == "/Users/test/media.mp3"
@@ -177,7 +178,7 @@ class TestParseSource:
     def test_file_url_encoded(self):
         """Test file:// URL with encoded characters."""
         source_type, parsed, error = _parse_source(
-            "file:///Users/test%20folder/video.mp4"
+            "file:///Users/test%20folder/video.mp4",
         )
         assert source_type == "file_url"
         assert parsed == "/Users/test folder/video.mp4"
@@ -295,12 +296,11 @@ class TestReadMedia:
         """Test relative path resolution."""
         # Create a file
         png_data = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",  # noqa: E501
         )
         (temp_dir / "relative.png").write_bytes(png_data)
 
         # Change to temp dir and test relative path
-        import os
         original_dir = os.getcwd()
         try:
             os.chdir(temp_dir)
@@ -320,7 +320,7 @@ class TestReadMedia:
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
+                return_value=mock_response,
             )
 
             response = await read_media("https://example.com/test.png")
@@ -338,7 +338,7 @@ class TestReadMedia:
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
+                return_value=mock_response,
             )
 
             response = await read_media("https://example.com/test.mp4")
@@ -355,7 +355,7 @@ class TestReadMedia:
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
+                return_value=mock_response,
             )
 
             response = await read_media("https://example.com/large.png")
@@ -397,7 +397,7 @@ class TestReadMedia:
         """Test image compression for large images."""
         # Create a mock for PIL
         mock_img = MagicMock()
-        mock_img.mode = 'RGB'
+        mock_img.mode = "RGB"
         mock_img.width = 100
         mock_img.height = 100
 
@@ -412,7 +412,9 @@ class TestReadMedia:
             mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
             response = await read_media(
-                str(large_png), compress=True, max_size_mb=5.0
+                str(large_png),
+                compress=True,
+                max_size_mb=5.0,
             )
 
             # Should return blocks (either compressed or original)
@@ -422,7 +424,7 @@ class TestReadMedia:
     async def test_compress_false(self, temp_dir: Path):
         """Test disabling compression."""
         png_data = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",  # noqa: E501
         )
         png_path = temp_dir / "test.png"
         png_path.write_bytes(png_data)
@@ -457,7 +459,12 @@ class TestConstants:
     def test_extension_categories(self):
         """Test extension categories are correctly defined."""
         assert IMAGE_EXTENSIONS == {
-            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+            ".bmp",
         }
         assert ".mp4" in VIDEO_EXTENSIONS
         assert ".mp3" in AUDIO_EXTENSIONS

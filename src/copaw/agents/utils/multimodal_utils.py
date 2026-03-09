@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Utilities for handling multimodal data (images, audio) in agent messages.
 
 This module provides functions to convert local file paths and file:// URLs
@@ -40,7 +41,8 @@ def _get_media_type(file_path: str) -> str:
     """
     ext = Path(file_path).suffix.lower()
     return MIME_TYPE_MAP.get(
-        ext, mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+        ext,
+        mimetypes.guess_type(file_path)[0] or "application/octet-stream",
     )
 
 

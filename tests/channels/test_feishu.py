@@ -398,7 +398,10 @@ class TestFeishuChannelParsePostContent:
         assert result["image_urls"] == []
 
     @pytest.mark.asyncio
-    async def test_parse_post_content_mixed_items_in_row(self, channel) -> None:
+    async def test_parse_post_content_mixed_items_in_row(
+        self,
+        channel,
+    ) -> None:
         """Test parsing post content with mixed items in a row."""
         content_raw = (
             '{"content": [[{"tag": "text", "text": "Hello "}, '

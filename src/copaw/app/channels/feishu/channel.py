@@ -555,7 +555,10 @@ class FeishuChannel(BaseChannel):
         {
             "title": "...",
             "content": [
-                [{"tag": "text", "text": "..."},\n{"tag": "img", "image_key": "..."}],
+                [
+                    {"tag": "text", "text": "..."},
+                    {"tag": "img", "image_key": "..."}
+                ],
                 [{"tag": "md", "text": "..."}]
             ]
         }
@@ -579,7 +582,9 @@ class FeishuChannel(BaseChannel):
         if isinstance(content_rows, list):
             for row in content_rows:
                 row_text = await self._parse_content_row(
-                    row, message_id, result["image_urls"]
+                    row,
+                    message_id,
+                    result["image_urls"],
                 )
                 if row_text:
                     text_parts.append(row_text)
