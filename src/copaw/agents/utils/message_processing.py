@@ -125,13 +125,32 @@ def _update_block_with_local_path(
     block: dict,
     block_type: str,
     local_path: str,
+    convert_to_base64: bool = False,
 ) -> dict:
-    """Update block with downloaded local path."""
+    """Update block with downloaded local path.
+
+    Args:
+        block: The content block to update.
+        block_type: Type of block (file, image, audio, video).
+        local_path: Local file path.
+        convert_to_base64: If True, convert local files to base64
+            for multimodal models.
+    """
+    from .multimodal_utils import file_to_base64
+
     if block_type == "file":
         block["source"] = local_path
         if not block.get("filename"):
             block["filename"] = os.path.basename(local_path)
     else:
+        # For image/audio/video, optionally convert to base64
+        if convert_to_base64 and block_type in ("image", "audio", "video"):
+            base64_source = file_to_base64(local_path)
+            if base64_source:
+                block["source"] = base64_source
+                return block
+
+        # Fallback to file:// URL (original behavior)
         if block_type == "audio":
             block["source"] = {
                 "type": "url",

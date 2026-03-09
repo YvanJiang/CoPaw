@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover - compatibility fallback
     AnthropicChatModel = None
 
 from .utils.tool_message_utils import _sanitize_tool_messages
+from .utils.multimodal_utils import convert_media_blocks_to_base64
 from ..config.utils import load_config
 from ..local_models import create_local_chat_model
 from ..providers import (
@@ -134,14 +135,21 @@ def _create_file_block_support_formatter(
         # pylint: disable=too-many-branches
         async def _format(self, msgs):
             """Override to sanitize tool messages, handle thinking blocks,
-            and relay ``extra_content`` (Gemini thought_signature).
+            convert local media files to base64, and relay ``extra_content``
+            (Gemini thought_signature).
 
             This prevents OpenAI API errors from improperly paired
             tool messages, preserves reasoning_content from "thinking"
-            blocks that the base formatter skips, and ensures
-            ``extra_content`` on tool_use blocks (e.g. Gemini
-            thought_signature) is carried through to the API request.
+            blocks that the base formatter skips, converts local file paths
+            to base64 for multimodal models, and ensures ``extra_content``
+            on tool_use blocks (e.g. Gemini thought_signature) is carried
+            through to the API request.
             """
+            # Convert local media files to base64 before formatting
+            for msg in msgs:
+                if isinstance(msg.content, list):
+                    msg.content = convert_media_blocks_to_base64(msg.content)
+
             msgs = _sanitize_tool_messages(msgs)
 
             reasoning_contents = {}
