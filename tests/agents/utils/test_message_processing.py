@@ -20,7 +20,10 @@ class TestUpdateBlockWithLocalPath:
         try:
             block = {
                 "type": "image",
-                "source": {"type": "url", "url": "http://example.com/image.png"},
+                "source": {
+                    "type": "url",
+                    "url": "http://example.com/image.png",
+                },
             }
 
             # With convert_to_base64=True
@@ -43,7 +46,10 @@ class TestUpdateBlockWithLocalPath:
         try:
             block = {
                 "type": "image",
-                "source": {"type": "url", "url": "http://example.com/image.png"},
+                "source": {
+                    "type": "url",
+                    "url": "http://example.com/image.png",
+                },
             }
 
             # With convert_to_base64=False (default)
@@ -65,7 +71,10 @@ class TestUpdateBlockWithLocalPath:
         try:
             block = {
                 "type": "audio",
-                "source": {"type": "url", "url": "http://example.com/audio.mp3"},
+                "source": {
+                    "type": "url",
+                    "url": "http://example.com/audio.mp3",
+                },
             }
 
             result = _update_block_with_local_path(

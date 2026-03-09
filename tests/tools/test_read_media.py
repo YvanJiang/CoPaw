@@ -33,7 +33,7 @@ def sample_png(temp_dir: Path):
     """Create a sample PNG file for testing."""
     # Minimal valid PNG (1x1 transparent pixel)
     png_data = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
     )
     png_path = temp_dir / "test.png"
     png_path.write_bytes(png_data)
@@ -149,21 +149,27 @@ class TestParseSource:
 
     def test_http_url(self):
         """Test HTTP URL parsing."""
-        source_type, parsed, error = _parse_source("http://example.com/image.png")
+        source_type, parsed, error = _parse_source(
+            "http://example.com/image.png"
+        )
         assert source_type == "http_url"
         assert parsed == "http://example.com/image.png"
         assert error == ""
 
     def test_https_url(self):
         """Test HTTPS URL parsing."""
-        source_type, parsed, error = _parse_source("https://example.com/video.mp4")
+        source_type, parsed, error = _parse_source(
+            "https://example.com/video.mp4"
+        )
         assert source_type == "http_url"
         assert parsed == "https://example.com/video.mp4"
         assert error == ""
 
     def test_file_url(self):
         """Test file:// URL parsing."""
-        source_type, parsed, error = _parse_source("file:///Users/test/media.mp3")
+        source_type, parsed, error = _parse_source(
+            "file:///Users/test/media.mp3"
+        )
         assert source_type == "file_url"
         assert parsed == "/Users/test/media.mp3"
         assert error == ""
@@ -289,7 +295,7 @@ class TestReadMedia:
         """Test relative path resolution."""
         # Create a file
         png_data = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
         )
         (temp_dir / "relative.png").write_bytes(png_data)
 
@@ -367,7 +373,10 @@ class TestReadMedia:
 
         response = await read_media(str(symlink_path))
         assert response.content[0]["type"] == "text"
-        assert "符号链接" in response.content[0]["text"] or "不存在" in response.content[0]["text"]
+        assert (
+            "符号链接" in response.content[0]["text"]
+            or "不存在" in response.content[0]["text"]
+        )
 
     @pytest.mark.asyncio
     async def test_magic_number_mismatch(self, temp_dir: Path):
@@ -378,7 +387,10 @@ class TestReadMedia:
 
         response = await read_media(str(fake_png))
         assert response.content[0]["type"] == "text"
-        assert "格式" in response.content[0]["text"] or "文件" in response.content[0]["text"]
+        assert (
+            "格式" in response.content[0]["text"]
+            or "文件" in response.content[0]["text"]
+        )
 
     @pytest.mark.asyncio
     async def test_image_compression(self, temp_dir: Path):
@@ -399,7 +411,9 @@ class TestReadMedia:
             mock_open.return_value.__enter__ = MagicMock(return_value=mock_img)
             mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
-            response = await read_media(str(large_png), compress=True, max_size_mb=5.0)
+            response = await read_media(
+                str(large_png), compress=True, max_size_mb=5.0
+            )
 
             # Should return blocks (either compressed or original)
             assert len(response.content) >= 1
@@ -408,7 +422,7 @@ class TestReadMedia:
     async def test_compress_false(self, temp_dir: Path):
         """Test disabling compression."""
         png_data = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="  # noqa: E501
         )
         png_path = temp_dir / "test.png"
         png_path.write_bytes(png_data)
@@ -442,6 +456,8 @@ class TestConstants:
 
     def test_extension_categories(self):
         """Test extension categories are correctly defined."""
-        assert IMAGE_EXTENSIONS == {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+        assert IMAGE_EXTENSIONS == {
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"
+        }
         assert ".mp4" in VIDEO_EXTENSIONS
         assert ".mp3" in AUDIO_EXTENSIONS

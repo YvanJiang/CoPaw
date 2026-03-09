@@ -367,7 +367,10 @@ class TestFeishuChannelParsePostContent:
     @pytest.mark.asyncio
     async def test_parse_post_content_with_title(self, channel) -> None:
         """Test parsing post content with title."""
-        content_raw = '{"title": "My Title", "content": [[{"tag": "text", "text": "Body text"}]]}'
+        content_raw = (
+            '{"title": "My Title", "content": '
+            '[[{"tag": "text", "text": "Body text"}]]}'
+        )
         result = await channel._parse_post_content("msg_123", content_raw)
 
         assert result["text"] == "My Title\nBody text"
@@ -385,7 +388,10 @@ class TestFeishuChannelParsePostContent:
     @pytest.mark.asyncio
     async def test_parse_post_content_multiple_rows(self, channel) -> None:
         """Test parsing post content with multiple rows."""
-        content_raw = '{"content": [[{"tag": "text", "text": "Line 1"}], [{"tag": "text", "text": "Line 2"}]]}'
+        content_raw = (
+            '{"content": [[{"tag": "text", "text": "Line 1"}],'
+            ' [{"tag": "text", "text": "Line 2"}]]}'
+        )
         result = await channel._parse_post_content("msg_123", content_raw)
 
         assert result["text"] == "Line 1\nLine 2"
@@ -394,7 +400,10 @@ class TestFeishuChannelParsePostContent:
     @pytest.mark.asyncio
     async def test_parse_post_content_mixed_items_in_row(self, channel) -> None:
         """Test parsing post content with mixed items in a row."""
-        content_raw = '{"content": [[{"tag": "text", "text": "Hello "}, {"tag": "text", "text": "world"}]]}'
+        content_raw = (
+            '{"content": [[{"tag": "text", "text": "Hello "}, '
+            '{"tag": "text", "text": "world"}]]}'
+        )
         result = await channel._parse_post_content("msg_123", content_raw)
 
         assert result["text"] == "Hello world"

@@ -474,7 +474,8 @@ class FeishuChannel(BaseChannel):
             # Response per Feishu doc: GET contact/v3/users/{user_id}
             # https://open.feishu.cn/document/server-docs/contact-v3/user/get
             # Body: { "code": 0, "data": { "user": { "name": ... } } }
-            # "name" can be string or i18n object { "zh_cn": "中文", "en": "en" }
+            # "name" can be string or i18n object
+            # { "zh_cn": "中文", "en": "en" }
             user = data.get("data") or {}
             inner = user.get("user") or {}
             name = None
@@ -554,7 +555,7 @@ class FeishuChannel(BaseChannel):
         {
             "title": "...",
             "content": [
-                [{"tag": "text", "text": "..."}, {"tag": "img", "image_key": "..."}],
+                [{"tag": "text", "text": "..."},\n{"tag": "img", "image_key": "..."}],
                 [{"tag": "md", "text": "..."}]
             ]
         }
@@ -1183,9 +1184,11 @@ class FeishuChannel(BaseChannel):
 
         Args:
             text: Markdown 文本内容
-            image_keys: 图片 key 列表（通过 _upload_image_sync 上传获得）
+            image_keys: 图片 key 列表
+                （通过 _upload_image_sync 上传获得）
             header_title: 卡片标题（可选）
-            template: 头部颜色模板，可选: green, red, blue, orange, indigo, grey
+            template: 头部颜色模板，可选:
+                green, red, blue, orange, indigo, grey
         """
         # 构建 body elements
         elements: List[Dict[str, Any]] = []
@@ -1732,7 +1735,10 @@ class FeishuChannel(BaseChannel):
         parts: List[OutgoingContentPart],
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """发送内容片段（使用 Card V2 格式，文本和图片整合在一个卡片中）."""
+        """发送内容片段（使用 Card V2 格式，
+
+        文本和图片整合在一个卡片中）.
+        """
         if not self.enabled:
             return
         recv = await self._get_receive_for_send(to_handle, meta)
