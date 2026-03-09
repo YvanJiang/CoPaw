@@ -7,6 +7,7 @@ import asyncio
 import locale
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -363,20 +364,30 @@ async def execute_shell_command(
             return code will be -1 and stderr will contain timeout information.
     """
     # 检查是否尝试直接调用 claude 命令
-    first_token = command.strip().split()[0] if command.strip() else ""
-    if first_token.startswith("claude"):
+    # 匹配行首、管道符、分号、&&、|| 后的 claude 或 claude_XXX 命令
+    claude_pattern = re.compile(
+        r'(?:^|[;|&]|&&|\|\|)\s*(claude(?:[_-][a-zA-Z0-9_]+)?)\b',
+        re.IGNORECASE
+    )
+    matches = claude_pattern.findall(command)
+    if matches:
         return ToolResponse(
             content=[
                 TextBlock(
                     type="text",
-                    text="❌ 不支持直接执行 claude 命令。"
+                    text=f"❌ 检测到不允许的命令 '{matches[0]}'。"
                     "请使用 launch_async_process 工具来启动 Claude 进程。",
                 ),
             ],
         )
 
     # 检查是否尝试使用 sleep 进行系统等待
-    if first_token == "sleep" or "sleep " in command.lower():
+    # 匹配行首、管道符、分号、&&、|| 后的 sleep 命令
+    sleep_pattern = re.compile(
+        r'(?:^|[;|&]|&&|\|\|)\s*(sleep)\b',
+        re.IGNORECASE
+    )
+    if sleep_pattern.search(command):
         error_msg = (
             "❌ 检测到使用 sleep 命令进行系统等待。\n\n"
             "请停止当前会话，让自己睡一觉，并改用 "
