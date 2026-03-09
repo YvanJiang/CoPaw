@@ -27,7 +27,6 @@ import os
 import tempfile
 import asyncio
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import Optional
 
 import httpx
@@ -118,6 +117,29 @@ def _get_media_type(file_path: str) -> Optional[str]:
     return SUPPORTED_FORMATS.get(ext)
 
 
+def _check_special_format(ext: str, header: bytes) -> bool:
+    """Check special format signatures for files with multiple variants.
+
+    Args:
+        ext: File extension.
+        header: File header bytes.
+
+    Returns:
+        True if format is valid, False otherwise.
+    """
+    if ext == ".gif":
+        return header[0:6] in (b"GIF87a", b"GIF89a")
+    if ext == ".webp":
+        return header[0:4] == b"RIFF" and header[8:12] == b"WEBP"
+    if ext in (".mp4", ".mov", ".m4a"):
+        return b"ftyp" in header[4:12]
+    if ext == ".wav":
+        return header[0:4] == b"RIFF" and b"WAVE" in header
+    if ext == ".avi":
+        return header[0:4] == b"RIFF" and b"AVI " in header
+    return False
+
+
 def _validate_media_magic(file_path: str) -> tuple[bool, str]:
     """Validate that file content matches expected format.
 
@@ -157,25 +179,7 @@ def _validate_media_magic(file_path: str) -> tuple[bool, str]:
         actual_signature = header[offset:offset + len(signature)]
 
         # Special handling for formats with multiple variants
-        if ext == ".gif" and header[0:6] in (b"GIF87a", b"GIF89a"):
-            return (True, "")
-
-        if ext == ".webp" and header[0:4] == b"RIFF" and header[8:12] == b"WEBP":
-            return (True, "")
-
-        if ext == ".mp4" and b"ftyp" in header[4:12]:
-            return (True, "")
-
-        if ext == ".mov" and b"ftyp" in header[4:12]:
-            return (True, "")
-
-        if ext == ".m4a" and b"ftyp" in header[4:12]:
-            return (True, "")
-
-        if ext == ".wav" and header[0:4] == b"RIFF" and b"WAVE" in header:
-            return (True, "")
-
-        if ext == ".avi" and header[0:4] == b"RIFF" and b"AVI " in header:
+        if _check_special_format(ext, header):
             return (True, "")
 
         if actual_signature == signature:
@@ -372,7 +376,7 @@ async def _compress_video(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await process.communicate()
+        _, _ = await process.communicate()
 
         if process.returncode != 0:
             return False
