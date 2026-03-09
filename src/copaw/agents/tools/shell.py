@@ -288,57 +288,64 @@ def _build_command_with_env(command: str) -> str:
 
     env_file = _get_default_env_file()
 
+    result = cmd
     if sys.platform == "win32":
-        # Build env exports from envs.json
-        env_exports = _build_env_exports_win32(envs)
-
-        # Escape user command for PowerShell double-quoted context
-        escaped_cmd = _escape_for_powershell_double_quotes(cmd)
-
-        if not env_file:
-            if env_exports:
-                return f'powershell -Command "{env_exports}; {escaped_cmd}"'
-            return cmd
-
-        # Windows: Use PowerShell to load environment variables from file
-        # Supports .env format (KEY=VALUE) and .bat format
-        if env_file.lower().endswith(".bat") or env_file.lower().endswith(
-            ".cmd",
-        ):
-            # For batch files, use call to execute them
-            if env_exports:
-                return f'call "{env_file}" && powershell -Command "{env_exports}; {escaped_cmd}"'
-            return f'call "{env_file}" && {cmd}'
-        else:
-            # Escape file path for PowerShell single-quoted context
-            escaped_env_file = _escape_for_powershell_single_quotes(env_file)
-
-            # For .env files, use PowerShell to parse and set variables
-            ps_script_parts = [
-                'powershell -Command "',
-                f"Get-Content -Path '{escaped_env_file}' | ",
-                "ForEach-Object { ",
-                "if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') ",
-                "{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') } ",
-                "}",
-            ]
-            if env_exports:
-                ps_script_parts.append(f"; {env_exports}")
-            ps_script_parts.append(f'; {escaped_cmd}"')
-            return "".join(ps_script_parts)
+        result = _build_windows_command(cmd, env_file, envs)
     else:
-        # Build env exports from envs.json
-        env_exports = _build_env_exports_unix(envs)
+        result = _build_unix_command(cmd, env_file, envs)
+    return result
 
-        if not env_file:
-            if env_exports:
-                return f"{env_exports} && {cmd}"
-            return cmd
 
-        # Linux/Mac: Use source command (sh compatible)
+def _build_windows_command(
+    cmd: str,
+    env_file: Optional[str],
+    envs: dict,
+) -> str:
+    """Build Windows shell command with environment sourcing."""
+    env_exports = _build_env_exports_win32(envs)
+    escaped_cmd = _escape_for_powershell_double_quotes(cmd)
+
+    if not env_file:
         if env_exports:
-            return f'source "{env_file}" && {env_exports} && {cmd}'
-        return f'source "{env_file}" && {cmd}'
+            return f'powershell -Command "{env_exports}; {escaped_cmd}"'
+        return cmd
+
+    if env_file.lower().endswith(".bat") or env_file.lower().endswith(".cmd"):
+        if env_exports:
+            return (
+                f'call "{env_file}" && '
+                f'powershell -Command "{env_exports}; {escaped_cmd}"'
+            )
+        return f'call "{env_file}" && {cmd}'
+
+    escaped_env_file = _escape_for_powershell_single_quotes(env_file)
+    ps_script_parts = [
+        'powershell -Command "',
+        f"Get-Content -Path '{escaped_env_file}' | ",
+        "ForEach-Object { ",
+        r"if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') ",
+        "{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], "
+        "'Process') } ",
+        "}",
+    ]
+    if env_exports:
+        ps_script_parts.append(f"; {env_exports}")
+    ps_script_parts.append(f'; {escaped_cmd}"')
+    return "".join(ps_script_parts)
+
+
+def _build_unix_command(cmd: str, env_file: Optional[str], envs: dict) -> str:
+    """Build Unix shell command with environment sourcing."""
+    env_exports = _build_env_exports_unix(envs)
+
+    if not env_file:
+        if env_exports:
+            return f"{env_exports} && {cmd}"
+        return cmd
+
+    if env_exports:
+        return f'source "{env_file}" && {env_exports} && {cmd}'
+    return f'source "{env_file}" && {cmd}'
 
 
 # pylint: disable=too-many-branches, too-many-statements

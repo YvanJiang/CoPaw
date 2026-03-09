@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """测试异步进程管理工具。"""
+# pylint: disable=redefined-outer-name,protected-access,unused-argument
+# redefined-outer-name: pytest fixtures are reused across tests
+# protected-access: tests need to access internal methods
+# unused-argument: cleanup fixture is required but not used in some tests
+
 import asyncio
 import os
-import platform
-import signal
-import sys
-import time
 from pathlib import Path
 
 import pytest

@@ -22,6 +22,7 @@ import threading
 import time
 import types
 from collections import OrderedDict
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -164,6 +165,7 @@ class FeishuChannel(BaseChannel):
         group_policy: str = "open",
         allow_from: Optional[List[str]] = None,
         deny_message: str = "",
+        domain: str = "https://open.feishu.cn",
     ):
         super().__init__(
             process,
@@ -182,6 +184,7 @@ class FeishuChannel(BaseChannel):
         self.bot_prefix = bot_prefix
         self.encrypt_key = encrypt_key or ""
         self.verification_token = verification_token or ""
+        self.domain = domain or "https://open.feishu.cn"
         self._media_dir = Path(media_dir).expanduser()
 
         self._client: Any = None
@@ -232,6 +235,7 @@ class FeishuChannel(BaseChannel):
             group_policy=os.getenv("FEISHU_GROUP_POLICY", "open"),
             allow_from=allow_from,
             deny_message=os.getenv("FEISHU_DENY_MESSAGE", ""),
+            domain=os.getenv("FEISHU_DOMAIN", "https://open.feishu.cn"),
         )
 
     @classmethod
@@ -261,6 +265,7 @@ class FeishuChannel(BaseChannel):
             group_policy=config.group_policy or "open",
             allow_from=config.allow_from or [],
             deny_message=config.deny_message or "",
+            domain=config.domain or "https://open.feishu.cn",
         )
 
     def resolve_session_id(
@@ -390,7 +395,7 @@ class FeishuChannel(BaseChannel):
                 return self._tenant_access_token
 
             url = (
-                "https://open.feishu.cn/open-apis/auth/v3/"
+                f"{self.domain}/open-apis/auth/v3/"
                 "tenant_access_token/internal"
             )
             payload = {
@@ -432,7 +437,7 @@ class FeishuChannel(BaseChannel):
             if open_id in self._nickname_cache:
                 return self._nickname_cache[open_id]
         url = (
-            "https://open.feishu.cn/open-apis/contact/v3/users/"
+            f"{self.domain}/open-apis/contact/v3/users/"
             f"{open_id}?user_id_type=open_id"
         )
         try:
@@ -537,6 +542,70 @@ class FeishuChannel(BaseChannel):
                 exc_info=True,
             )
         return None
+
+    async def _parse_post_content(
+        self,
+        message_id: str,
+        content_raw: str,
+    ) -> Dict[str, Any]:
+        """Parse Feishu post (rich text) content.
+
+        Post content format:
+        {
+            "title": "...",
+            "content": [
+                [{"tag": "text", "text": "..."}, {"tag": "img", "image_key": "..."}],
+                [{"tag": "md", "text": "..."}]
+            ]
+        }
+
+        Returns dict with "text" and "image_urls" keys.
+        """
+        result: Dict[str, Any] = {"text": "", "image_urls": []}
+        try:
+            data = json.loads(content_raw) if content_raw else {}
+        except json.JSONDecodeError:
+            return result
+
+        # Extract title if present
+        title = data.get("title", "")
+        text_parts: List[str] = []
+        if title:
+            text_parts.append(title)
+
+        # Parse content rows
+        content_rows = data.get("content", [])
+        if isinstance(content_rows, list):
+            for row in content_rows:
+                if not isinstance(row, list):
+                    continue
+                row_texts: List[str] = []
+                for item in row:
+                    if not isinstance(item, dict):
+                        continue
+                    tag = item.get("tag", "")
+                    if tag == "text":
+                        text = item.get("text", "")
+                        if text:
+                            row_texts.append(text)
+                    elif tag == "md":
+                        text = item.get("text", "")
+                        if text:
+                            row_texts.append(text)
+                    elif tag == "img":
+                        image_key = item.get("image_key", "")
+                        if image_key:
+                            url_or_path = await self._download_image_resource(
+                                message_id,
+                                image_key,
+                            )
+                            if url_or_path:
+                                result["image_urls"].append(url_or_path)
+                if row_texts:
+                    text_parts.append("".join(row_texts))
+
+        result["text"] = "\n".join(text_parts)
+        return result
 
     def _emit_request_threadsafe(self, request: Any) -> None:
         """Enqueue request via manager (thread-safe)."""
@@ -684,6 +753,21 @@ class FeishuChannel(BaseChannel):
                         text_parts.append("[audio: download failed]")
                 else:
                     text_parts.append("[audio: missing key]")
+            elif msg_type == "post":
+                # Parse rich post content (text + images mixed)
+                post_content = await self._parse_post_content(
+                    message_id,
+                    content_raw,
+                )
+                if post_content.get("text"):
+                    text_parts.append(post_content["text"])
+                for img_url in post_content.get("image_urls", []):
+                    content_parts.append(
+                        ImageContent(
+                            type=ContentType.IMAGE,
+                            image_url=img_url,
+                        ),
+                    )
             else:
                 text_parts.append(f"[{msg_type}]")
 
@@ -870,7 +954,7 @@ class FeishuChannel(BaseChannel):
         """Download image to media_dir; return local path or None."""
         token = await self._get_tenant_access_token()
         url = (
-            f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}"
+            f"{self.domain}/open-apis/im/v1/messages/{message_id}"
             f"/resources/{image_key}"
         )
         headers = {"Authorization": f"Bearer {token}"}
@@ -917,7 +1001,7 @@ class FeishuChannel(BaseChannel):
         """
         token = await self._get_tenant_access_token()
         url = (
-            f"https://open.feishu.cn/open-apis/im/v1/messages/"
+            f"{self.domain}/open-apis/im/v1/messages/"
             f"{message_id}/resources/{file_key}?type=file"
         )
         headers = {"Authorization": f"Bearer {token}"}
@@ -1227,7 +1311,7 @@ class FeishuChannel(BaseChannel):
             file_type = "xls" if ext == "xlsx" else file_type
             file_type = "ppt" if ext == "pptx" else file_type
         mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-        url = "https://open.feishu.cn/open-apis/im/v1/files"
+        url = f"{self.domain}/open-apis/im/v1/files"
         form = aiohttp.FormData()
         form.add_field("file_type", file_type)
         form.add_field("file_name", path.name)
@@ -1333,7 +1417,7 @@ class FeishuChannel(BaseChannel):
             logger.exception("feishu _send_message_sync failed")
             return False
 
-    async def _send_text(
+    async def send_text(
         self,
         receive_id_type: str,
         receive_id: str,
@@ -1716,7 +1800,7 @@ class FeishuChannel(BaseChannel):
                 loop = asyncio.get_running_loop()
                 image_key = await loop.run_in_executor(
                     None,
-                    lambda: self._upload_image_sync(data, filename),
+                    partial(self._upload_image_sync, data, filename),
                 )
                 if image_key:
                     image_keys.append(image_key)
@@ -1862,6 +1946,7 @@ class FeishuChannel(BaseChannel):
             self.app_secret,
             event_handler=event_handler,
             log_level=lark.LogLevel.INFO,
+            domain=self.domain,
         )
         self._stop_event.clear()
         self._ws_thread = threading.Thread(

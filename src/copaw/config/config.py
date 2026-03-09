@@ -73,6 +73,11 @@ class FeishuConfig(BaseChannelConfig):
     webhook_verification_token: str = ""
     webhook_skip_signature_verify: bool = False
 
+    # Domain configuration for Lark/Feishu
+    # Use "https://open.feishu.cn" for China region (default)
+    # Use "https://open.larksuite.com" for International region
+    domain: str = "https://open.feishu.cn"
+
 
 class QQConfig(BaseChannelConfig):
     app_id: str = ""

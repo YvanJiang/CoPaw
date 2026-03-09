@@ -2,10 +2,8 @@
 """Tests for BasicAuthMiddleware."""
 
 import base64
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.responses import PlainTextResponse
 
 from copaw.app.auth_middleware import BasicAuthMiddleware
 

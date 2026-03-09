@@ -8,6 +8,8 @@ This module tests:
 4. Session ID generation logic
 5. Receive ID storage and loading
 """
+# pylint: disable=protected-access
+# protected-access: tests need to access internal methods
 
 import sys
 from types import ModuleType
@@ -336,6 +338,83 @@ class TestFeishuChannelBuildPostContent:
 
         # Should have at least one row with [empty]
         assert result["zh_cn"]["content"][0][0]["text"] == "[empty]"
+
+
+class TestFeishuChannelParsePostContent:
+    """Test parsing incoming post (rich text) content."""
+
+    @pytest.fixture
+    def channel(self):
+        """Create a mock Feishu channel."""
+        process_mock = Mock()
+        return FeishuChannel(
+            process=process_mock,
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="[BOT] ",
+        )
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_text_only(self, channel) -> None:
+        """Test parsing post content with text only."""
+        content_raw = '{"content": [[{"tag": "text", "text": "Hello world"}]]}'
+        result = await channel._parse_post_content("msg_123", content_raw)
+
+        assert result["text"] == "Hello world"
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_with_title(self, channel) -> None:
+        """Test parsing post content with title."""
+        content_raw = '{"title": "My Title", "content": [[{"tag": "text", "text": "Body text"}]]}'
+        result = await channel._parse_post_content("msg_123", content_raw)
+
+        assert result["text"] == "My Title\nBody text"
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_markdown(self, channel) -> None:
+        """Test parsing post content with markdown tag."""
+        content_raw = '{"content": [[{"tag": "md", "text": "**Bold** text"}]]}'
+        result = await channel._parse_post_content("msg_123", content_raw)
+
+        assert result["text"] == "**Bold** text"
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_multiple_rows(self, channel) -> None:
+        """Test parsing post content with multiple rows."""
+        content_raw = '{"content": [[{"tag": "text", "text": "Line 1"}], [{"tag": "text", "text": "Line 2"}]]}'
+        result = await channel._parse_post_content("msg_123", content_raw)
+
+        assert result["text"] == "Line 1\nLine 2"
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_mixed_items_in_row(self, channel) -> None:
+        """Test parsing post content with mixed items in a row."""
+        content_raw = '{"content": [[{"tag": "text", "text": "Hello "}, {"tag": "text", "text": "world"}]]}'
+        result = await channel._parse_post_content("msg_123", content_raw)
+
+        assert result["text"] == "Hello world"
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_invalid_json(self, channel) -> None:
+        """Test parsing invalid JSON content."""
+        result = await channel._parse_post_content("msg_123", "not valid json")
+
+        assert result["text"] == ""
+        assert result["image_urls"] == []
+
+    @pytest.mark.asyncio
+    async def test_parse_post_content_empty_content(self, channel) -> None:
+        """Test parsing empty content."""
+        result = await channel._parse_post_content("msg_123", "{}")
+
+        assert result["text"] == ""
+        assert result["image_urls"] == []
 
 
 class TestFeishuChannelConfiguration:

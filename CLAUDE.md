@@ -30,6 +30,15 @@ pytest -m "not slow"
 # Run a specific test file
 pytest tests/test_command_dispatch.py
 
+# Run a specific test class
+pytest tests/test_async_process.py::TestAsyncProcessNotification
+
+# Run a specific test method
+pytest tests/test_async_process.py::TestAsyncProcessNotification::test_auto_notify_on_completion
+
+# Run only failed tests from last run
+pytest --lf
+
 # Run with coverage
 pytest --cov=copaw
 ```
@@ -55,6 +64,9 @@ cd website && npm run format
 ```bash
 cd console
 
+# Install dependencies (clean install)
+npm ci
+
 # Development server
 npm run dev
 
@@ -77,10 +89,10 @@ copaw init --defaults
 copaw app
 
 # With debug logging
- copaw app --debug
+copaw app --debug
 
 # Daemon mode
- copaw daemon start
+copaw daemon start
 ```
 
 ### Build Scripts
@@ -121,19 +133,24 @@ tests/                # pytest test suite
 **Agent Architecture**
 - `CoPawAgent` in `agents/react_agent.py` extends AgentScope's `ReActAgent`
 - Integrates tools (shell, file ops, browser), skills, and memory management
-- Uses hooks for bootstrap guidance and memory compaction
+- Uses hooks for bootstrap guidance (`agents/hooks/bootstrap.py`) and memory compaction (`agents/hooks/memory_compaction.py`)
+- Tools are registered via `register_tool()` and can have naming conflicts resolved via `namesake_strategy`
 
 **Channel System** (`app/channels/`)
 - All channels extend `BaseChannel` in `app/channels/base.py`
 - Unified in-process contract: native payload → `content_parts` → agent
 - Channels are registered in `app/channels/registry.py`
 - Custom channels can be loaded from the working directory
+- Key lifecycle: `receive` → `build_agent_request_from_native` → `_process` → `send_message_content`
+- Use `uses_manager_queue = True` for long-lived channels (manager creates queue and consumer loop)
+- Content parts use AgentScope runtime types: `TextContent`, `ImageContent`, `FileContent`, etc.
 
 **Skills System** (`agents/skills/`)
 - Each skill is a directory with `SKILL.md` (YAML front matter + instructions)
 - Optional `references/` for reference docs, `scripts/` for tools
 - Built-in skills: cron, file_reader, pdf, docx, pptx, xlsx, browser_visible, news
 - Skills are merged from built-in and user's `customized_skills/` into `active_skills/`
+- Loaded dynamically at runtime by `skills_manager.py`
 
 **Model Provider System** (`providers/`)
 - `registry.py`: Provider definitions with `id`, `name`, `default_base_url`
@@ -172,10 +189,12 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`
 - Set class attribute `channel` to a unique key (e.g., `"telegram"`)
 - Implement lifecycle: receive → `content_parts` → `process` → send response
 - Use `uses_manager_queue = True` for long-lived channels
+- Override `build_agent_request_from_native()` to convert channel-specific payloads to AgentScope runtime content parts
+- Override `send()` and optionally `send_media()` for channel-specific output
 
-## HTTP Basic Auth 配置
+## HTTP Basic Auth Configuration
 
-在 `config.json` 中添加 `auth` 部分启用 HTTP Basic Auth：
+Add `auth` section to `config.json` to enable HTTP Basic Auth:
 
 ```json
 {
@@ -188,7 +207,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`
 }
 ```
 
-- `enabled`: 是否启用认证
-- `username`: 登录用户名
-- `password`: 登录密码（空字符串表示禁用认证）
-- `excluded_paths`: 不需要认证的路径列表（默认排除飞书 webhook）
+- `enabled`: Whether to enable authentication
+- `username`: Login username
+- `password`: Login password (empty string disables auth)
+- `excluded_paths`: Paths that don't require authentication (webhook endpoints excluded by default)

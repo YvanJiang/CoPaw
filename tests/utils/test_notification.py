@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """Tests for notification service."""
+# pylint: disable=protected-access
+# protected-access: tests need to access internal methods
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from copaw.utils.notification import (
     NotificationService,

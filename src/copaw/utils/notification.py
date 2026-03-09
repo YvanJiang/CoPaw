@@ -64,11 +64,8 @@ class NotificationService:
             f'curl -u "{self.api_user}:{self.api_pass}" '
             f'-X POST "{url}" '
             f'-H "Content-Type: application/json" '
-            '-d "{\\"message\\":\\"{escaped_message}\\",'
-            '\\"source\\":\\"{escaped_source}\\"}"'.format(
-                escaped_message=escaped_message,
-                escaped_source=escaped_source,
-            )
+            f'-d "{{\\"message\\":\\"{escaped_message}\\",'
+            f'\\"source\\":\\"{escaped_source}\\"}}"'
         )
 
         return cmd

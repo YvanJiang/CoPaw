@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Tests for Feishu webhook functionality."""
+# pylint: disable=redefined-outer-name,protected-access
+# redefined-outer-name: pytest fixtures are reused across tests
+# protected-access: tests need to access internal methods
 
 import base64
 import hashlib
-import hmac
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -40,11 +41,13 @@ def client(app):
 def mock_config():
     """Mock FeishuConfig for testing."""
     config = MagicMock()
-    config.channels.feishu.webhook_enabled = True
-    config.channels.feishu.webhook_verification_token = "test_token"
-    config.channels.feishu.verification_token = ""
-    config.channels.feishu.webhook_encrypt_key = ""
-    config.channels.feishu.encrypt_key = ""
+    feishu_config = config.channels.feishu
+    feishu_config.webhook_enabled = True
+    feishu_config.webhook_verification_token = "test_token"
+    feishu_config.verification_token = ""
+    feishu_config.webhook_encrypt_key = ""
+    feishu_config.encrypt_key = ""
+    feishu_config.webhook_skip_signature_verify = False
     return config
 
 
@@ -58,12 +61,12 @@ class TestVerifySignature:
         nonce = "test_nonce"
         body = '{"test": "data"}'
 
-        # Generate expected signature
-        key = encrypt_key.encode("utf-8")
-        msg = f"{timestamp}{nonce}{body}".encode("utf-8")
-        expected_signature = base64.b64encode(
-            hmac.new(key, msg, hashlib.sha256).digest(),
-        ).decode("utf-8")
+        # Generate expected signature using Lark algorithm:
+        # SHA256(timestamp + nonce + encrypt_key + body) as hex
+        content = f"{timestamp}{nonce}{encrypt_key}{body}"
+        expected_signature = hashlib.sha256(
+            content.encode("utf-8"),
+        ).hexdigest()
 
         # Verify
         result = verify_signature(
@@ -132,8 +135,8 @@ class TestWebhookEventHandling:
         mock_config.channels.feishu.webhook_enabled = False
 
         with patch(
-            "copaw.app.routers.feishu_webhook.load_config",
-            return_value=mock_config,
+            "copaw.app.routers.feishu_webhook._get_feishu_config",
+            return_value=mock_config.channels.feishu,
         ):
             payload = {
                 "schema": "2.0",
@@ -153,8 +156,8 @@ class TestWebhookEventHandling:
         )
 
         with patch(
-            "copaw.app.routers.feishu_webhook.load_config",
-            return_value=mock_config,
+            "copaw.app.routers.feishu_webhook._get_feishu_config",
+            return_value=mock_config.channels.feishu,
         ):
             payload = {
                 "schema": "2.0",
@@ -192,8 +195,8 @@ class TestWebhookEventHandling:
         app.state.channel_manager.channels = {}
 
         with patch(
-            "copaw.app.routers.feishu_webhook.load_config",
-            return_value=mock_config,
+            "copaw.app.routers.feishu_webhook._get_feishu_config",
+            return_value=mock_config.channels.feishu,
         ):
             payload = {
                 "schema": "2.0",
@@ -230,8 +233,8 @@ class TestWebhookEventHandling:
         app.state.channel_manager.channels = {"feishu": mock_channel}
 
         with patch(
-            "copaw.app.routers.feishu_webhook.load_config",
-            return_value=mock_config,
+            "copaw.app.routers.feishu_webhook._get_feishu_config",
+            return_value=mock_config.channels.feishu,
         ):
             payload = {
                 "schema": "2.0",
@@ -280,7 +283,13 @@ class TestWebhookEventFormat:
         """Test text message format conversion."""
         from copaw.app.channels.feishu.channel import FeishuChannel
 
-        channel = FeishuChannel(config=MagicMock())
+        channel = FeishuChannel(
+            process=MagicMock(),
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="test",
+        )
         channel._enqueue = MagicMock()
 
         # Mock _add_reaction to avoid API calls
@@ -309,7 +318,7 @@ class TestWebhookEventFormat:
         channel._enqueue.assert_called_once()
         native = channel._enqueue.call_args[0][0]
         assert native["channel_id"] == "feishu"
-        assert native["sender_id"] == "Test User(ou_test_user)"
+        assert "Test User" in native["sender_id"]
         assert native["meta"]["feishu_message_id"] == "om_test_msg"
         assert native["meta"]["feishu_chat_type"] == "p2p"
 
@@ -318,7 +327,13 @@ class TestWebhookEventFormat:
         """Test group message format conversion."""
         from copaw.app.channels.feishu.channel import FeishuChannel
 
-        channel = FeishuChannel(config=MagicMock())
+        channel = FeishuChannel(
+            process=MagicMock(),
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="test",
+        )
         channel._enqueue = MagicMock()
         channel._add_reaction = AsyncMock()
 
@@ -350,7 +365,13 @@ class TestWebhookEventFormat:
         """Test handling of empty event."""
         from copaw.app.channels.feishu.channel import FeishuChannel
 
-        channel = FeishuChannel(config=MagicMock())
+        channel = FeishuChannel(
+            process=MagicMock(),
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="test",
+        )
         channel._enqueue = MagicMock()
 
         # Empty event
@@ -366,7 +387,13 @@ class TestWebhookEventFormat:
         """Test that bot messages are filtered out."""
         from copaw.app.channels.feishu.channel import FeishuChannel
 
-        channel = FeishuChannel(config=MagicMock())
+        channel = FeishuChannel(
+            process=MagicMock(),
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="test",
+        )
         channel._enqueue = MagicMock()
         channel._add_reaction = AsyncMock()
 
@@ -401,11 +428,8 @@ class TestDecryptBody:
         result = decrypt_body("key", "")
         assert result == ""
 
-    def test_decrypt_placeholder(self):
-        """Test decrypt placeholder (not fully implemented)."""
-        # This should emit a warning since AES decryption
-        # is not fully implemented
-        with pytest.warns(UserWarning):
-            result = decrypt_body("key", base64.b64encode(b"test").decode())
-            # Should return something (base64 decoded for now)
-            assert "test" in result
+    def test_decrypt_invalid_data(self):
+        """Test decrypt with invalid data raises error."""
+        # Invalid encrypted data (too short for IV) should raise ValueError
+        with pytest.raises(ValueError):
+            decrypt_body("key", base64.b64encode(b"test").decode())

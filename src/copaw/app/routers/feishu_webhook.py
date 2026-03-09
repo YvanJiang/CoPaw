@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -138,6 +138,148 @@ def decrypt_body(encrypt_key: str, encrypted_body: str) -> str:
     return plaintext.decode("utf-8")
 
 
+def _get_feishu_config():
+    """Load and return Feishu configuration."""
+    from ...config.utils import load_config
+
+    config = load_config()
+    return config.channels.feishu
+
+
+def _get_signature_key(feishu_config) -> str:
+    """Get signature key from config."""
+    return (
+        feishu_config.webhook_encrypt_key
+        or feishu_config.encrypt_key
+        or feishu_config.webhook_verification_token
+        or feishu_config.verification_token
+    )
+
+
+def _decrypt_payload_if_needed(
+    payload: Dict[str, Any],
+    feishu_config,
+) -> Tuple[Dict[str, Any], bool]:
+    """Decrypt payload if encrypted.
+
+    Returns:
+        Tuple of (decrypted_payload, is_url_verification).
+    """
+    is_url_verification = payload.get("type") == "url_verification"
+
+    if "encrypt" not in payload:
+        return payload, is_url_verification
+
+    encrypt_key = (
+        getattr(feishu_config, "webhook_encrypt_key", None)
+        or getattr(feishu_config, "encrypt_key", None)
+        or getattr(feishu_config, "verification_token", None)
+    )
+
+    if not encrypt_key:
+        return payload, is_url_verification
+
+    try:
+        decrypted = decrypt_body(encrypt_key, payload["encrypt"])
+        payload = json.loads(decrypted)
+        logger.info("Successfully decrypted webhook payload")
+        is_url_verification = payload.get("type") == "url_verification"
+        return payload, is_url_verification
+    except Exception as e:
+        logger.error(f"Failed to decrypt webhook payload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Decryption failed",
+        ) from e
+
+
+def _verify_webhook_signature(
+    feishu_config,
+    timestamp: str,
+    nonce: str,
+    body_str: str,
+    signature: str,
+) -> None:
+    """Verify webhook signature, raise HTTPException if invalid."""
+    skip_sig = getattr(feishu_config, "webhook_skip_signature_verify", False)
+    if skip_sig:
+        logger.warning(
+            "Skipping signature verification "
+            "(webhook_skip_signature_verify is enabled)",
+        )
+        return
+
+    signature_key = _get_signature_key(feishu_config)
+    if not signature_key or not signature:
+        return
+
+    is_valid = verify_signature(
+        signature_key,
+        timestamp,
+        nonce,
+        body_str,
+        signature,
+    )
+
+    if is_valid:
+        return
+
+    # Try using verification_token as fallback
+    verification_key = (
+        feishu_config.webhook_verification_token
+        or feishu_config.verification_token
+    )
+    if verification_key and verification_key != signature_key:
+        is_valid = verify_signature(
+            verification_key,
+            timestamp,
+            nonce,
+            body_str,
+            signature,
+        )
+        if is_valid:
+            logger.info("Signature verified using verification_token")
+            return
+
+    logger.error(
+        f"Webhook signature verification failed. "
+        f"Timestamp: {timestamp}, Nonce: {nonce}, "
+        f"Signature key prefix: {signature_key[:8]}..., "
+        f"Body length: {len(body_str)}",
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Invalid signature",
+    )
+
+
+def _find_feishu_channel(request: Request):
+    """Find FeishuChannel instance from channel manager."""
+    cm = getattr(request.app.state, "channel_manager", None)
+    if cm is None:
+        logger.error("Channel manager not initialized")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Channel manager not ready",
+        )
+
+    if hasattr(cm, "channels"):
+        channels = cm.channels
+        if isinstance(channels, dict):
+            channel_iter = channels.values()
+        else:
+            channel_iter = channels
+        for ch in channel_iter:
+            if getattr(ch, "channel", None) == "feishu":
+                return ch
+
+    logger.error("Feishu channel not found")
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Feishu channel not available",
+    )
+
+
 @router.post("/webhook/feishu")
 async def handle_feishu_webhook(request: Request) -> JSONResponse:
     """Handle Feishu webhook events.
@@ -162,10 +304,9 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
         f"signature={signature[:30] if signature else 'None'}..., "
         f"body_len={len(body_str)}",
     )
-    # Log full body for signature verification debugging
-    # (temporarily using info level)
     logger.info("Feishu webhook full body for debug: %s", body_str)
 
+    # Parse JSON payload
     try:
         payload: Dict[str, Any] = json.loads(body_str)
     except json.JSONDecodeError as e:
@@ -175,37 +316,16 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
             detail="Invalid JSON payload",
         ) from e
 
-    # Handle challenge verification (URL verification)
-    # Note: URL verification may be encrypted, handle both cases
-    is_url_verification = payload.get("type") == "url_verification"
+    # Get config for decryption and verification
+    feishu_config = _get_feishu_config()
 
-    # Check if payload is encrypted (url_verification with encrypt field)
-    if "encrypt" in payload:
-        # Get config for decryption
-        from ...config.utils import load_config
+    # Handle decryption if needed
+    payload, is_url_verification = _decrypt_payload_if_needed(
+        payload,
+        feishu_config,
+    )
 
-        config = load_config()
-        feishu_config = config.channels.feishu
-        encrypt_key = (
-            getattr(feishu_config, "webhook_encrypt_key", None)
-            or getattr(feishu_config, "encrypt_key", None)
-            or getattr(feishu_config, "verification_token", None)
-        )
-
-        if encrypt_key:
-            try:
-                decrypted = decrypt_body(encrypt_key, payload["encrypt"])
-                payload = json.loads(decrypted)
-                logger.info("Successfully decrypted webhook payload")
-                # Re-check type after decryption
-                is_url_verification = payload.get("type") == "url_verification"
-            except Exception as e:
-                logger.error(f"Failed to decrypt webhook payload: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Decryption failed",
-                ) from e
-
+    # Handle URL verification
     if is_url_verification:
         challenge = payload.get("challenge")
         logger.info(f"Feishu webhook URL verification, challenge: {challenge}")
@@ -214,12 +334,7 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
             status_code=status.HTTP_200_OK,
         )
 
-    # Get config for verification
-    from ...config.utils import load_config
-
-    config = load_config()
-    feishu_config = config.channels.feishu
-
+    # Check if webhook is enabled
     if not feishu_config.webhook_enabled:
         logger.warning("Feishu webhook is disabled in config")
         raise HTTPException(
@@ -227,73 +342,16 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
             detail="Webhook not enabled",
         )
 
-    # Verify signature using encrypt_key
-    # (Lark uses encrypt_key for signature, not verification_token)
-    # Reference: https://open.larksuite.com/document/uAjLw4CM/
-    #   ukTMukTMukTM/event-subscription-guide/event-subscription-configure
-    signature_key = (
-        feishu_config.webhook_encrypt_key
-        or feishu_config.encrypt_key
-        or feishu_config.webhook_verification_token
-        or feishu_config.verification_token
+    # Verify signature
+    _verify_webhook_signature(
+        feishu_config,
+        timestamp,
+        nonce,
+        body_str,
+        signature,
     )
 
-    # Allow skipping signature verification
-    # (e.g., for reverse proxy setups that modify request body)
-    skip_sig = getattr(feishu_config, "webhook_skip_signature_verify", False)
-    if skip_sig:
-        logger.warning(
-            "Skipping signature verification "
-            "(webhook_skip_signature_verify is enabled)",
-        )
-    elif signature_key and signature:
-        is_valid = verify_signature(
-            signature_key,
-            timestamp,
-            nonce,
-            body_str,
-            signature,
-        )
-        if not is_valid:
-            # 尝试使用 verification_token 验证（某些 Lark 配置使用此方式）
-            verification_key = (
-                feishu_config.webhook_verification_token
-                or feishu_config.verification_token
-            )
-            if verification_key and verification_key != signature_key:
-                is_valid = verify_signature(
-                    verification_key,
-                    timestamp,
-                    nonce,
-                    body_str,
-                    signature,
-                )
-                if is_valid:
-                    logger.info("Signature verified using verification_token")
-                else:
-                    logger.error(
-                        f"Webhook signature verification failed. "
-                        f"Timestamp: {timestamp}, Nonce: {nonce}, "
-                        f"Signature key prefix: {signature_key[:8]}..., "
-                        f"Body length: {len(body_str)}",
-                    )
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Invalid signature",
-                    )
-            else:
-                logger.error(
-                    f"Webhook signature verification failed. "
-                    f"Timestamp: {timestamp}, Nonce: {nonce}, "
-                    f"Signature key prefix: {signature_key[:8]}..., "
-                    f"Body length: {len(body_str)}",
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Invalid signature",
-                )
-
-    # Decrypt body if encrypted
+    # Decrypt body if encrypted (for event callbacks)
     encrypt_key = (
         feishu_config.webhook_encrypt_key or feishu_config.encrypt_key
     )
@@ -308,49 +366,19 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
                 detail="Decryption failed",
             ) from e
 
-    # Get the event data from the new 2.0 schema
-    payload.get("event", payload)
+    # Log event info
     header = payload.get("header", {})
     event_id = header.get("event_id", "")
-
     logger.debug(f"Received Feishu webhook event: {event_id}")
 
-    # Dispatch to channel - get channel_manager from app.state
-    cm = getattr(request.app.state, "channel_manager", None)
-    if cm is None:
-        logger.error("Channel manager not initialized")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Channel manager not ready",
-        )
+    # Find FeishuChannel and dispatch event
+    feishu_channel = _find_feishu_channel(request)
 
-    # Find FeishuChannel instance
-    feishu_channel = None
-    if hasattr(cm, "channels"):
-        channels = cm.channels
-        if isinstance(channels, dict):
-            channel_iter = channels.values()
-        else:
-            channel_iter = channels
-        for ch in channel_iter:
-            if getattr(ch, "channel", None) == "feishu":
-                feishu_channel = ch
-                break
-
-    if feishu_channel is None:
-        logger.error("Feishu channel not found")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Feishu channel not available",
-        )
-
-    # Handle the event asynchronously
     try:
         await feishu_channel.handle_webhook_event(payload)
     except Exception as e:
         logger.exception(f"Error handling webhook event: {e}")
         # Return 200 to prevent Feishu from retrying
-        # (we've logged the error)
 
     return JSONResponse(
         content={"code": 0, "msg": "success"},
