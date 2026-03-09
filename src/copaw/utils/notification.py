@@ -16,7 +16,8 @@ class NotificationService:
         """Initialize notification service.
 
         Args:
-            base_url: Base URL for notification API. Defaults to env var or localhost.
+            base_url: Base URL for notification API.
+                Defaults to env var or localhost.
         """
         self.base_url = base_url or os.environ.get(
             "COPAW_NOTIFY_URL",
@@ -49,7 +50,8 @@ class NotificationService:
         if not self.is_configured():
             raise RuntimeError(
                 "Notification service not configured. "
-                "Please set API_USER and API_PASS environment variables.",
+                "Please set API_USER and "
+                "API_PASS environment variables.",
             )
 
         # Escape quotes in message to prevent shell injection
@@ -62,7 +64,11 @@ class NotificationService:
             f'curl -u "{self.api_user}:{self.api_pass}" '
             f'-X POST "{url}" '
             f'-H "Content-Type: application/json" '
-            f'-d "{{\\"message\\":\\"{escaped_message}\\",\\"source\\":\\"{escaped_source}\\"}}"'
+            '-d "{\\"message\\":\\"{escaped_message}\\",'
+            '\\"source\\":\\"{escaped_source}\\"}"'.format(
+                escaped_message=escaped_message,
+                escaped_source=escaped_source,
+            )
         )
 
         return cmd
@@ -79,7 +85,8 @@ class NotificationService:
         """
         if not self.is_configured():
             logger.warning(
-                "Cannot send notification: API_USER and API_PASS not configured",
+                "Cannot send notification: "
+                "API_USER and API_PASS not configured",
             )
             return False
 
@@ -91,6 +98,7 @@ class NotificationService:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,
             )
 
             if result.returncode == 0:

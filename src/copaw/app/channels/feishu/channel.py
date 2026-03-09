@@ -794,7 +794,7 @@ class FeishuChannel(BaseChannel):
                 sender=SimpleNamespace(
                     sender_type=sender.get("sender_type", ""),
                     sender_id=SimpleNamespace(
-                        open_id=sender.get("sender_id", {}).get("open_id", "")
+                        open_id=sender.get("sender_id", {}).get("open_id", ""),
                     ),
                     name=sender.get("name", ""),
                     nickname=sender.get("nickname", ""),
@@ -1115,7 +1115,7 @@ class FeishuChannel(BaseChannel):
                         "tag": "lark_md",
                         "content": normalize_feishu_md(text),
                     },
-                }
+                },
             )
 
         # 添加图片元素
@@ -1125,7 +1125,7 @@ class FeishuChannel(BaseChannel):
                     "tag": "img",
                     "img_key": image_key,
                     "alt": {"tag": "plain_text", "content": "图片"},
-                }
+                },
             )
 
         # 如果没有内容，显示占位符
@@ -1134,7 +1134,7 @@ class FeishuChannel(BaseChannel):
                 {
                     "tag": "div",
                     "text": {"tag": "lark_md", "content": "[empty]"},
-                }
+                },
             )
 
         # 构建基础卡片结构
@@ -1364,7 +1364,10 @@ class FeishuChannel(BaseChannel):
     ) -> bool:
         """发送 Card V2 消息."""
         card = self._build_card_v2_content(
-            text, image_keys, header_title, template
+            text,
+            image_keys,
+            header_title,
+            template,
         )
         content = json.dumps(card, ensure_ascii=False)
         loop = asyncio.get_running_loop()

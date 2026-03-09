@@ -191,9 +191,7 @@ class MCPClientManager:
         # Merge system environment with config-provided env vars
         # Config env vars take precedence over system env vars
         # Filter out empty values to avoid overriding system env vars
-        config_env = {
-            k: v for k, v in client_config.env.items() if v
-        }
+        config_env = {k: v for k, v in client_config.env.items() if v}
         merged_env = {**os.environ, **config_env}
 
         rebuild_info = {

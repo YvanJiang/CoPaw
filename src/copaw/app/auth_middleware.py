@@ -4,14 +4,15 @@
 import secrets
 from typing import Optional
 
-from fastapi import Request, HTTPException, status
+from fastapi import Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
-    """Middleware to enforce HTTP Basic Auth on all routes except excluded paths."""
+    """Middleware to enforce HTTP Basic Auth on all routes
+    except excluded paths."""
 
     def __init__(
         self,
@@ -38,10 +39,12 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         if not credentials:
             return False
         is_username_ok = secrets.compare_digest(
-            credentials.username, self.username
+            credentials.username,
+            self.username,
         )
         is_password_ok = secrets.compare_digest(
-            credentials.password, self.password
+            credentials.password,
+            self.password,
         )
         return is_username_ok and is_password_ok
 

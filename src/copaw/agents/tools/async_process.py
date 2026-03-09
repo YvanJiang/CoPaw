@@ -13,8 +13,8 @@ from typing import Optional
 from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 
-from .process_manager import AsyncProcessInfo, get_manager
 from copaw.utils.notification import get_notification_service
+from .process_manager import AsyncProcessInfo, get_manager
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def _format_process_table(processes: list[AsyncProcessInfo]) -> str:
         + "─" * pid_width
         + "┬"
         + "─" * cmd_width
-        + "┐"
+        + "┐",
     )
     header_name = "名称".ljust(name_width)
     header_pid = "PID".ljust(pid_width)
@@ -61,7 +61,7 @@ def _format_process_table(processes: list[AsyncProcessInfo]) -> str:
         + "─" * pid_width
         + "┼"
         + "─" * cmd_width
-        + "┤"
+        + "┤",
     )
 
     for proc in processes:
@@ -81,7 +81,7 @@ def _format_process_table(processes: list[AsyncProcessInfo]) -> str:
         + "─" * (pid_width + 2)
         + "┴"
         + "─" * (cmd_width + 2)
-        + "┘"
+        + "┘",
     )
 
     return "\n".join(lines)
@@ -196,7 +196,7 @@ async def launch_async_process(
 
         # 构建响应
         response_lines = [
-            f"✅ 进程已启动",
+            "✅ 进程已启动",
             f"- 名称：{proc_info.name}",
             f"- PID: {proc_info.pid}",
             f"- 命令：{command}",
@@ -209,25 +209,25 @@ async def launch_async_process(
             if notification_service.is_configured():
                 response_lines.extend(
                     [
-                        f"",
-                        f"📬 通知：已启用",
+                        "",
+                        "📬 通知：已启用",
                         f"  消息：{notify_message or '默认'}",
-                    ]
+                    ],
                 )
             else:
                 response_lines.extend(
                     [
-                        f"",
-                        f"⚠️ 通知：未配置（请设置 API_USER 和 API_PASS）",
-                    ]
+                        "",
+                        "⚠️ 通知：未配置（请设置 API_USER 和 API_PASS）",
+                    ],
                 )
 
         response_lines.extend(
             [
-                f"",
-                f"提示：使用 view_async_processes 查看进程列表，"
-                f"使用 stop_async_process 停止进程。",
-            ]
+                "",
+                "提示：使用 view_async_processes 查看进程列表，"
+                "使用 stop_async_process 停止进程。",
+            ],
         )
 
         response_text = "\n".join(response_lines)

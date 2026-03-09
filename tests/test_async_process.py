@@ -36,7 +36,7 @@ def get_sleep_command(seconds: int = 10) -> str:
 def get_short_sleep_command(seconds: float = 0.1) -> str:
     """获取跨平台的短等待命令。"""
     if IS_WINDOWS:
-        return f"python -c \"import time; time.sleep({seconds})\""
+        return f'python -c "import time; time.sleep({seconds})"'
     else:
         return f"sleep {seconds}"
 
@@ -360,6 +360,9 @@ class TestProcessManagerPersist:
         # 创建新管理器实例
         AsyncProcessManager._instance = None
         manager2 = get_manager()
+
+        # 验证新管理器实例创建成功
+        assert manager2 is not None
 
         # 验证已退出的进程记录被加载（运行中的进程不会被加载为 running）
         # 这是预期行为，因为进程可能在管理器重启后丢失

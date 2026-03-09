@@ -59,7 +59,7 @@ def _get_shell_config_cmd() -> str:
 
     if config_file:
         logger.info(
-            f"[Shell Tool] Detected shell: {shell}, will source: {config_file}"
+            f"[Shell Tool] Detected shell: {shell}, will source: {config_file}",
         )
         # Use 'source' for bash/zsh, but need to handle the case where
         # shell might be different from the one we're targeting
@@ -103,7 +103,7 @@ def _execute_subprocess_sync(
             # Combine sourcing with the actual command
             full_cmd = f"{shell_config} && {cmd}"
             logger.info(
-                f"[Shell Tool] Executing with shell config sourced: {cwd=}"
+                f"[Shell Tool] Executing with shell config sourced: {cwd=}",
             )
         else:
             full_cmd = cmd
@@ -111,7 +111,7 @@ def _execute_subprocess_sync(
     else:
         full_cmd = cmd
         logger.info(
-            f"[Shell Tool] Executing on Windows or config disabled: {cwd=}"
+            f"[Shell Tool] Executing on Windows or config disabled: {cwd=}",
         )
 
     try:
@@ -144,7 +144,7 @@ def _execute_subprocess_sync(
         )
     except subprocess.CalledProcessError as e:
         logger.info(
-            f"[Shell Tool] Command failed with returncode={e.returncode}"
+            f"[Shell Tool] Command failed with returncode={e.returncode}",
         )
         return e.returncode, e.stdout.strip("\n"), e.stderr.strip("\n")
     except Exception as e:
@@ -158,8 +158,6 @@ def _get_default_env_file() -> Optional[str]:
     Returns:
         `Optional[str]`: Path to the default env file, or None if not found.
     """
-    import os
-
     if sys.platform == "win32":
         # Windows: Check for common env files in USERPROFILE
         user_profile = os.environ.get("USERPROFILE", "")
@@ -305,7 +303,7 @@ def _build_command_with_env(command: str) -> str:
         # Windows: Use PowerShell to load environment variables from file
         # Supports .env format (KEY=VALUE) and .bat format
         if env_file.lower().endswith(".bat") or env_file.lower().endswith(
-            ".cmd"
+            ".cmd",
         ):
             # For batch files, use call to execute them
             if env_exports:
@@ -317,12 +315,12 @@ def _build_command_with_env(command: str) -> str:
 
             # For .env files, use PowerShell to parse and set variables
             ps_script_parts = [
-                f'powershell -Command "',
+                'powershell -Command "',
                 f"Get-Content -Path '{escaped_env_file}' | ",
-                f"ForEach-Object {{ ",
-                f"if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') ",
-                f"{{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') }} ",
-                f"}}",
+                "ForEach-Object { ",
+                "if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') ",
+                "{ [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') } ",
+                "}",
             ]
             if env_exports:
                 ps_script_parts.append(f"; {env_exports}")
@@ -425,7 +423,7 @@ async def execute_shell_command(
     working_dir = cwd if cwd is not None else WORKING_DIR
 
     logger.info(
-        f"[Shell Tool] Preparing to execute: {cmd[:100]}... in {working_dir}"
+        f"[Shell Tool] Preparing to execute: {cmd[:100]}... in {working_dir}",
     )
 
     try:
@@ -474,7 +472,7 @@ async def execute_shell_command(
 
             except asyncio.TimeoutError:
                 logger.warning(
-                    f"[Shell Tool] Command timeout after {timeout}s"
+                    f"[Shell Tool] Command timeout after {timeout}s",
                 )
                 # Handle timeout
                 stderr_suffix = (

@@ -3,7 +3,8 @@
 
 Handles Feishu event subscriptions via HTTP webhook.
 Supports challenge verification, signature verification, and event dispatching.
-Reference: https://open.feishu.cn/document/ukTMukTMukTM/uYDNxYjL2QTM24iN0EjN/event-subscription-guide
+Reference: https://open.feishu.cn/document/ukTMukTMukTM/
+uYDNxYjL2QTM24iN0EjN/event-subscription-guide
 """
 
 import base64
@@ -40,15 +41,20 @@ def verify_signature(
     Returns:
         True if signature is valid, False otherwise
 
-    Reference: https://open.larksuite.com/document/server-docs/event-subscription/event-subscription-configure-/encrypt-key-encryption-configuration-case
+    Reference: https://open.larksuite.com/document/server-docs/
+        event-subscription/event-subscription-configure-/
+        encrypt-key-encryption-configuration-case
     Algorithm: SHA256(timestamp + nonce + encrypt_key + body), output as hex
     """
     if not encrypt_key:
-        logger.warning("No encrypt_key configured, skipping signature verification")
+        logger.warning(
+            "No encrypt_key configured, skipping signature verification",
+        )
         return True
 
-    # Lark signature algorithm: SHA256(timestamp + nonce + encrypt_key + body)
-    # Note: This is NOT HMAC, just a simple SHA256 hash of the concatenated string
+    # Lark signature algorithm:
+    # SHA256(timestamp + nonce + encrypt_key + body)
+    # Note: This is NOT HMAC, just a simple SHA256 hash
     content = f"{timestamp}{nonce}{encrypt_key}{body}"
     computed = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -58,9 +64,12 @@ def verify_signature(
         logger.info(f"Signature verification PASSED for timestamp={timestamp}")
     else:
         logger.warning(
-            f"Signature verification FAILED: timestamp={timestamp}, nonce={nonce}, "
-            f"key_prefix={encrypt_key[:8]}..., body_len={len(body)}, "
-            f"computed={computed[:20]}..., expected={expected_signature[:20]}..."
+            "Signature verification FAILED: "
+            f"timestamp={timestamp}, nonce={nonce}, "
+            f"key_prefix={encrypt_key[:8]}..., "
+            f"body_len={len(body)}, "
+            f"computed={computed[:20]}..., "
+            f"expected={expected_signature[:20]}...",
         )
 
     return is_valid
@@ -84,15 +93,19 @@ def decrypt_body(encrypt_key: str, encrypted_body: str) -> str:
 
     try:
         # Try to import cryptography for AES decryption
-        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+        from cryptography.hazmat.primitives.ciphers import (
+            Cipher,
+            algorithms,
+            modes,
+        )
         from cryptography.hazmat.backends import default_backend
     except ImportError:
         logger.error(
             "cryptography package is required for webhook decryption. "
-            "Install with: pip install cryptography"
+            "Install with: pip install cryptography",
         )
         raise RuntimeError(
-            "cryptography package required for Lark webhook decryption"
+            "cryptography package required for Lark webhook decryption",
         ) from None
 
     # Decode the base64 encrypted body
@@ -111,7 +124,7 @@ def decrypt_body(encrypt_key: str, encrypted_body: str) -> str:
     cipher = Cipher(
         algorithms.AES(key),
         modes.CBC(iv),
-        backend=default_backend()
+        backend=default_backend(),
     )
     decryptor = cipher.decryptor()
 
@@ -147,10 +160,11 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
     logger.info(
         f"Feishu webhook request: timestamp={timestamp}, nonce={nonce}, "
         f"signature={signature[:30] if signature else 'None'}..., "
-        f"body_len={len(body_str)}"
+        f"body_len={len(body_str)}",
     )
-    # Log full body for signature verification debugging (temporarily using info level)
-    logger.info(f"Feishu webhook full body for debug: {body_str}")
+    # Log full body for signature verification debugging
+    # (temporarily using info level)
+    logger.info("Feishu webhook full body for debug: %s", body_str)
 
     try:
         payload: Dict[str, Any] = json.loads(body_str)
@@ -213,8 +227,10 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
             detail="Webhook not enabled",
         )
 
-    # Verify signature using encrypt_key (Lark uses encrypt_key for signature, not verification_token)
-    # Reference: https://open.larksuite.com/document/uAjLw4CM/ukTMukTMukTM/event-subscription-guide/event-subscription-configure
+    # Verify signature using encrypt_key
+    # (Lark uses encrypt_key for signature, not verification_token)
+    # Reference: https://open.larksuite.com/document/uAjLw4CM/
+    #   ukTMukTMukTM/event-subscription-guide/event-subscription-configure
     signature_key = (
         feishu_config.webhook_encrypt_key
         or feishu_config.encrypt_key
@@ -222,9 +238,14 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
         or feishu_config.verification_token
     )
 
-    # Allow skipping signature verification (e.g., for reverse proxy setups that modify request body)
-    if getattr(feishu_config, "webhook_skip_signature_verify", False):
-        logger.warning("Skipping signature verification (webhook_skip_signature_verify is enabled)")
+    # Allow skipping signature verification
+    # (e.g., for reverse proxy setups that modify request body)
+    skip_sig = getattr(feishu_config, "webhook_skip_signature_verify", False)
+    if skip_sig:
+        logger.warning(
+            "Skipping signature verification "
+            "(webhook_skip_signature_verify is enabled)",
+        )
     elif signature_key and signature:
         is_valid = verify_signature(
             signature_key,
@@ -254,7 +275,7 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
                         f"Webhook signature verification failed. "
                         f"Timestamp: {timestamp}, Nonce: {nonce}, "
                         f"Signature key prefix: {signature_key[:8]}..., "
-                        f"Body length: {len(body_str)}"
+                        f"Body length: {len(body_str)}",
                     )
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -265,7 +286,7 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
                     f"Webhook signature verification failed. "
                     f"Timestamp: {timestamp}, Nonce: {nonce}, "
                     f"Signature key prefix: {signature_key[:8]}..., "
-                    f"Body length: {len(body_str)}"
+                    f"Body length: {len(body_str)}",
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -273,7 +294,9 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
                 )
 
     # Decrypt body if encrypted
-    encrypt_key = feishu_config.webhook_encrypt_key or feishu_config.encrypt_key
+    encrypt_key = (
+        feishu_config.webhook_encrypt_key or feishu_config.encrypt_key
+    )
     if encrypt_key and "encrypt" in payload:
         try:
             decrypted = decrypt_body(encrypt_key, payload["encrypt"])
@@ -286,7 +309,7 @@ async def handle_feishu_webhook(request: Request) -> JSONResponse:
             ) from e
 
     # Get the event data from the new 2.0 schema
-    event_data = payload.get("event", payload)
+    payload.get("event", payload)
     header = payload.get("header", {})
     event_id = header.get("event_id", "")
 

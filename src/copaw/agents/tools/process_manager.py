@@ -164,7 +164,9 @@ class AsyncProcessInfo:
             "command": self.command,
             "started_at": self.started_at,
             "cwd": self.cwd,
-            "status": self.status.value if isinstance(self.status, ProcessState) else self.status,
+            "status": self.status.value
+            if isinstance(self.status, ProcessState)
+            else self.status,
             "exited_at": self.exited_at,
             "exit_code": self.exit_code,
         }
@@ -198,11 +200,13 @@ class AsyncProcessManager:
     """
 
     _instance: Optional["AsyncProcessManager"] = None
+    _initialized: bool = False
 
     def __new__(cls) -> "AsyncProcessManager":
         """单例模式。"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
         return cls._instance
 
     def __init__(self) -> None:
@@ -280,14 +284,16 @@ class AsyncProcessManager:
                     proc_info.status = ProcessState.EXITED
                     proc_info.exited_at = datetime.now().isoformat()
                     logger.info(
-                        f"[AsyncProcessManager] 进程 '{name}' (PID: {proc_info.pid}) 已退出"
+                        "[AsyncProcessManager] 进程 '%s' (PID: %s) 已退出",
+                        name,
+                        proc_info.pid,
                     )
                 except PermissionError:
                     # 进程存在但没有权限发送信号（通常意味着进程还在运行）
                     pass
                 except Exception as e:
                     logger.warning(
-                        f"[AsyncProcessManager] 检查进程 '{name}' 状态失败：{e}"
+                        f"[AsyncProcessManager] 检查进程 '{name}' 状态失败：{e}",
                     )
 
             # 保存状态
@@ -318,12 +324,12 @@ class AsyncProcessManager:
                     try:
                         os.kill(existing.pid, 0)
                         raise ValueError(
-                            f"进程 '{name}' 已在运行 (PID: {existing.pid})"
+                            f"进程 '{name}' 已在运行 (PID: {existing.pid})",
                         )
                     except ProcessLookupError:
                         # 进程已退出，可以复用名称
                         logger.info(
-                            f"[AsyncProcessManager] 进程 '{name}' 已退出，复用名称"
+                            f"[AsyncProcessManager] 进程 '{name}' 已退出，复用名称",
                         )
                         self._processes.pop(name)
                 else:
@@ -352,7 +358,11 @@ class AsyncProcessManager:
                 env=env,
                 # Windows 不支持 start_new_session，使用 creationflags 替代
                 start_new_session=not IS_WINDOWS,
-                **({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS else {}),
+                **(
+                    {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                    if IS_WINDOWS
+                    else {}
+                ),
             )
 
             # 创建进程信息（记录实际执行的完整命令）
@@ -372,7 +382,7 @@ class AsyncProcessManager:
             self._save_processes()
 
             logger.info(
-                f"[AsyncProcessManager] 进程 '{name}' 已启动 (PID: {proc.pid})"
+                f"[AsyncProcessManager] 进程 '{name}' 已启动 (PID: {proc.pid})",
             )
 
             return proc_info
@@ -402,7 +412,11 @@ class AsyncProcessManager:
         Returns:
             运行中的进程信息列表
         """
-        return [p for p in self._processes.values() if p.status == ProcessState.RUNNING]
+        return [
+            p
+            for p in self._processes.values()
+            if p.status == ProcessState.RUNNING
+        ]
 
     async def stop(self, name: str, force: bool = False) -> bool:
         """停止进程。
@@ -422,7 +436,7 @@ class AsyncProcessManager:
 
             if proc_info.status != ProcessState.RUNNING:
                 logger.info(
-                    f"[AsyncProcessManager] 进程 '{name}' 已退出，无需停止"
+                    f"[AsyncProcessManager] 进程 '{name}' 已退出，无需停止",
                 )
                 return True
 
@@ -464,7 +478,9 @@ class AsyncProcessManager:
                 self._save_processes()
 
                 logger.info(
-                    f"[AsyncProcessManager] 进程 '{name}' (PID: {proc_info.pid}) 已停止"
+                    "[AsyncProcessManager] 进程 '%s' (PID: %s) 已停止",
+                    name,
+                    proc_info.pid,
                 )
                 return True
 
@@ -474,12 +490,14 @@ class AsyncProcessManager:
                 proc_info.exited_at = datetime.now().isoformat()
                 self._save_processes()
                 logger.info(
-                    f"[AsyncProcessManager] 进程 '{name}' (PID: {proc_info.pid}) 已退出"
+                    "[AsyncProcessManager] 进程 '%s' (PID: %s) 已退出",
+                    name,
+                    proc_info.pid,
                 )
                 return True
             except Exception as e:
                 logger.error(
-                    f"[AsyncProcessManager] 停止进程 '{name}' 失败：{e}"
+                    f"[AsyncProcessManager] 停止进程 '{name}' 失败：{e}",
                 )
                 return False
 
@@ -517,7 +535,7 @@ class AsyncProcessManager:
                 try:
                     os.kill(proc_info.pid, 0)
                     logger.warning(
-                        f"[AsyncProcessManager] 进程 '{name}' 仍在运行，无法清理"
+                        f"[AsyncProcessManager] 进程 '{name}' 仍在运行，无法清理",
                     )
                     return False
                 except ProcessLookupError:
@@ -540,18 +558,18 @@ class AsyncProcessManager:
             with open(self._persist_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.debug(
-                f"[AsyncProcessManager] 进程信息已保存到 {self._persist_file}"
+                f"[AsyncProcessManager] 进程信息已保存到 {self._persist_file}",
             )
         except Exception as e:
             logger.error(
-                f"[AsyncProcessManager] 保存进程信息失败：{e}"
+                f"[AsyncProcessManager] 保存进程信息失败：{e}",
             )
 
     def _load_processes(self) -> None:
         """从持久化文件加载进程信息。"""
         if not self._persist_file.exists():
             logger.debug(
-                f"[AsyncProcessManager] 持久化文件不存在：{self._persist_file}"
+                f"[AsyncProcessManager] 持久化文件不存在：{self._persist_file}",
             )
             return
 
@@ -572,7 +590,9 @@ class AsyncProcessManager:
                         proc_info.status = ProcessState.ORPHANED
                         self._processes[name] = proc_info
                         logger.warning(
-                            f"[AsyncProcessManager] 发现孤儿进程 '{name}' (PID: {proc_info.pid})"
+                            "[AsyncProcessManager] 发现孤儿进程 '%s' (PID: %s)",
+                            name,
+                            proc_info.pid,
                         )
                     except ProcessLookupError:
                         # 进程已退出，更新状态
@@ -581,7 +601,9 @@ class AsyncProcessManager:
                         self._processes[name] = proc_info
 
             logger.info(
-                f"[AsyncProcessManager] 从 {self._persist_file} 加载了 {len(self._processes)} 个进程记录"
+                "[AsyncProcessManager] 从 %s 加载了 %s 个进程记录",
+                self._persist_file,
+                len(self._processes),
             )
         except Exception as e:
             logger.error(f"[AsyncProcessManager] 加载进程信息失败：{e}")

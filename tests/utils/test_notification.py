@@ -80,7 +80,8 @@ class TestNotificationService:
         with patch.dict(os.environ, {}, clear=True):
             service = NotificationService()
             with pytest.raises(
-                RuntimeError, match="Notification service not configured"
+                RuntimeError,
+                match="Notification service not configured",
             ):
                 service.build_feishu_command("Hello", "Test")
 
@@ -110,7 +111,9 @@ class TestNotificationService:
     def test_send_feishu_sync_failure(self, mock_run):
         """Test failed notification sending."""
         mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="Error"
+            returncode=1,
+            stdout="",
+            stderr="Error",
         )
 
         env = {"API_USER": "user", "API_PASS": "pass"}

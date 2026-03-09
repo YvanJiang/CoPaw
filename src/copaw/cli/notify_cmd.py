@@ -8,7 +8,6 @@ from copaw.utils.notification import get_notification_service
 @click.group(name="notify")
 def notify_cmd():
     """Manage notification settings and send test notifications."""
-    pass
 
 
 @notify_cmd.command(name="send")
@@ -34,7 +33,7 @@ def send_notification(message: str, source: str):
             "Please set API_USER and API_PASS environment variables.",
         )
 
-    click.echo(f"Sending notification...")
+    click.echo("Sending notification...")
     click.echo(f"  Message: {message}")
     click.echo(f"  Source: {source}")
 

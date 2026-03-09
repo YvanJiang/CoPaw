@@ -10,7 +10,12 @@ from starlette.responses import PlainTextResponse
 from copaw.app.auth_middleware import BasicAuthMiddleware
 
 
-def create_test_app(username="admin", password="secret", excluded_paths=None, enabled=True):
+def create_test_app(
+    username="admin",
+    password="secret",
+    excluded_paths=None,
+    enabled=True,
+):
     """Create a test app with auth middleware."""
     app = FastAPI()
 
@@ -59,7 +64,7 @@ class TestBasicAuthMiddleware:
         credentials = base64.b64encode(b"admin:secret").decode("utf-8")
         response = client.get(
             "/test",
-            headers={"Authorization": f"Basic {credentials}"}
+            headers={"Authorization": f"Basic {credentials}"},
         )
 
         assert response.status_code == 200
@@ -73,7 +78,7 @@ class TestBasicAuthMiddleware:
         credentials = base64.b64encode(b"admin:wrongpassword").decode("utf-8")
         response = client.get(
             "/test",
-            headers={"Authorization": f"Basic {credentials}"}
+            headers={"Authorization": f"Basic {credentials}"},
         )
 
         assert response.status_code == 401
@@ -116,7 +121,7 @@ class TestBasicAuthMiddleware:
         credentials = base64.b64encode(b"wronguser:secret").decode("utf-8")
         response = client.get(
             "/test",
-            headers={"Authorization": f"Basic {credentials}"}
+            headers={"Authorization": f"Basic {credentials}"},
         )
 
         assert response.status_code == 401
@@ -126,10 +131,12 @@ class TestBasicAuthMiddleware:
         app = create_test_app(username="customuser", password="custompass")
         client = TestClient(app)
 
-        credentials = base64.b64encode(b"customuser:custompass").decode("utf-8")
+        credentials = base64.b64encode(b"customuser:custompass").decode(
+            "utf-8",
+        )
         response = client.get(
             "/test",
-            headers={"Authorization": f"Basic {credentials}"}
+            headers={"Authorization": f"Basic {credentials}"},
         )
 
         assert response.status_code == 200

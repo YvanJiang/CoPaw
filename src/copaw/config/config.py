@@ -45,14 +45,19 @@ class DingTalkConfig(BaseChannelConfig):
 
 
 class FeishuConfig(BaseChannelConfig):
-    """Feishu/Lark channel: app_id, app_secret; optional encrypt_key,
-    verification_token for event handler. media_dir for received media.
+    """Feishu/Lark channel: app_id, app_secret; optional
+    encrypt_key, verification_token for event handler.
+    media_dir for received media.
 
     Webhook mode:
-        webhook_enabled: Enable HTTP webhook for receiving events (alternative to WebSocket)
-        webhook_path: URL path for webhook endpoint (default: /webhook/feishu)
-        webhook_encrypt_key: Key for decrypting webhook payloads (if encryption enabled)
-        webhook_verification_token: Token for verifying webhook request signature
+        webhook_enabled: Enable HTTP webhook for receiving events
+            (alternative to WebSocket)
+        webhook_path: URL path for webhook endpoint
+            (default: /webhook/feishu)
+        webhook_encrypt_key: Key for decrypting webhook payloads
+            (if encryption enabled)
+        webhook_verification_token: Token for verifying webhook
+            request signature
     """
 
     app_id: str = ""
@@ -320,7 +325,7 @@ class AuthConfig(BaseModel):
     username: str = "admin"
     password: str = ""  # Empty password means auth is disabled
     excluded_paths: List[str] = Field(
-        default_factory=lambda: ["/webhook/feishu", "/webhook/feishu/health"]
+        default_factory=lambda: ["/webhook/feishu", "/webhook/feishu/health"],
     )
 
 

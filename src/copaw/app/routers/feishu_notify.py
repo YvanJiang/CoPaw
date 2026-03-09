@@ -19,7 +19,7 @@ import time
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,8 @@ async def notify_feishu(
 
     Examples:
         # Query parameter with source
-        curl -X POST "http://localhost:8000/api/v1/notify/feishu?message=测试消息&source=Zabbix"
+        curl -X POST "http://localhost:8000/api/v1/notify/feishu\
+?message=测试消息&source=Zabbix"
 
         # JSON body with source
         curl -X POST http://localhost:8000/api/v1/notify/feishu \
@@ -83,11 +84,15 @@ async def notify_feishu(
 
     # 2. Validate configuration
     if not chat_id and not open_id:
-        logger.warning("Feishu notify: FEISHU_NOTIFY_CHAT_ID or FEISHU_NOTIFY_OPEN_ID not set")
+        logger.warning(
+            "Feishu notify: FEISHU_NOTIFY_CHAT_ID or "
+            "FEISHU_NOTIFY_OPEN_ID not set",
+        )
         return JSONResponse(
             content={
                 "code": 400,
-                "message": "FEISHU_NOTIFY_CHAT_ID or FEISHU_NOTIFY_OPEN_ID not set",
+                "message": "FEISHU_NOTIFY_CHAT_ID or "
+                "FEISHU_NOTIFY_OPEN_ID not set",
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -150,8 +155,9 @@ async def notify_feishu(
     # 7. Send message (dual sending: direct + agent processing)
     try:
         logger.info(
-            f"Feishu notify: sending message to {receive_id_type}={receive_id[:20]}... "
-            f"message_len={len(formatted_message)}"
+            "Feishu notify: sending message to "
+            f"{receive_id_type}={receive_id[:20]}... "
+            f"message_len={len(formatted_message)}",
         )
 
         # 7a. First send: Direct message to Feishu
@@ -164,7 +170,10 @@ async def notify_feishu(
         if not direct_result:
             logger.error("Feishu notify: _send_text returned False")
             return JSONResponse(
-                content={"code": 500, "message": "Failed to send direct message"},
+                content={
+                    "code": 500,
+                    "message": "Failed to send direct message",
+                },
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -175,11 +184,14 @@ async def notify_feishu(
         # Construct simulated webhook payload
         # Use a virtual sender_id for simulated events to avoid exposing
         # real user IDs and prevent 400 errors when fetching user info
-        simulated_sender_id = open_id or f"virtual_notify_{uuid.uuid4().hex[:8]}"
+        simulated_sender_id = (
+            open_id or f"virtual_notify_{uuid.uuid4().hex[:8]}"
+        )
         simulated_event = {
             "event": {
                 "message": {
-                    "message_id": f"simulated_{uuid.uuid4().hex}_{int(time.time())}",
+                    "message_id": f"simulated_{uuid.uuid4().hex}_"
+                    f"{int(time.time())}",
                     "chat_id": chat_id or open_id,
                     "chat_type": chat_type,
                     "message_type": "text",
@@ -191,20 +203,26 @@ async def notify_feishu(
                     "name": source_name,
                     "nickname": source_name,
                 },
-            }
+            },
         }
 
         # Call handle_webhook_event for agent processing
-        if hasattr(feishu_channel, 'handle_webhook_event'):
+        if hasattr(feishu_channel, "handle_webhook_event"):
             await feishu_channel.handle_webhook_event(simulated_event)
-            logger.info("Feishu notify: queued for agent processing via webhook event")
+            logger.info(
+                "Feishu notify: queued for agent processing via webhook event",
+            )
         else:
-            logger.warning("Feishu notify: handle_webhook_event not available, skipping agent processing")
+            logger.warning(
+                "Feishu notify: handle_webhook_event not available, "
+                "skipping agent processing",
+            )
 
         return JSONResponse(
             content={
                 "code": 0,
-                "message": "Direct message sent and queued for agent processing",
+                "message": "Direct message sent and queued "
+                "for agent processing",
             },
             status_code=status.HTTP_200_OK,
         )
