@@ -6,7 +6,7 @@ import{_ as e}from"./index-Bj_xN4cv.js";var l=e(()=>`
     overflow: visible;
     vertical-align: -0.125em;
   }
-  
+
   .node .label-icon path {
     fill: currentColor;
     stroke: revert;

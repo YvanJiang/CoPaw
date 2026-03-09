@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=protected-access
 """Tests for model factory and FileBlockSupportFormatter."""
 import os
 import tempfile

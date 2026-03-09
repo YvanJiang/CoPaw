@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=protected-access
 """Integration tests for multimodal data flow from channel to formatter."""
 import base64
 import os

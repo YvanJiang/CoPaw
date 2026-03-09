@@ -3,8 +3,6 @@
 import os
 import tempfile
 
-import pytest
-
 from copaw.agents.utils.message_processing import (
     _update_block_with_local_path,
 )

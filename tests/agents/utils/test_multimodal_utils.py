@@ -3,9 +3,6 @@
 import base64
 import os
 import tempfile
-from pathlib import Path
-
-import pytest
 
 from copaw.agents.utils.multimodal_utils import (
     file_to_base64,

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=redefined-outer-name,unused-import,line-too-long
 """Unit tests for read_media tool."""
 import base64
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 
