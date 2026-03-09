@@ -527,6 +527,15 @@ async def read_media(
 
     # Handle local files and file:// URLs
     file_path = parsed_source
+    if file_path is None:
+        return ToolResponse(
+            content=[
+                TextBlock(
+                    type="text",
+                    text="错误：无法解析媒体文件来源",
+                ),
+            ],
+        )
 
     # Resolve to absolute path
     if not os.path.isabs(file_path):
