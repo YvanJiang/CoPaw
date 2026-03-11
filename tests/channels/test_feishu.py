@@ -343,3 +343,116 @@ class TestFeishuChannelConfiguration:
         channel = FeishuChannel.from_env(process_mock)
 
         assert channel.enabled is False
+
+
+class TestFeishuCardV2:
+    """Test Card V2 message format."""
+
+    @pytest.fixture
+    def channel(self):
+        """Create a mock Feishu channel."""
+        process_mock = Mock()
+        return FeishuChannel(
+            process=process_mock,
+            enabled=True,
+            app_id="test_app_id",
+            app_secret="test_app_secret",
+            bot_prefix="[BOT] ",
+        )
+
+    def test_build_card_v2_content_text_only(self, channel) -> None:
+        """Test building card with text only."""
+        result = channel._build_card_v2_content(
+            "Hello world",
+            [],
+            header_title="Test",
+        )
+        assert result["schema"] == "2.0"
+        assert result["header"]["template"] == "blue"
+        assert result["header"]["title"]["content"] == "Test"
+        assert len(result["body"]["elements"]) == 1
+        assert result["body"]["elements"][0]["tag"] == "div"
+
+    def test_build_card_v2_content_with_images(self, channel) -> None:
+        """Test building card with text and images."""
+        result = channel._build_card_v2_content(
+            "See image:",
+            ["img_key_123"],
+            header_title="Image Card",
+            template="green",
+        )
+        assert result["schema"] == "2.0"
+        assert result["header"]["template"] == "green"
+        assert result["header"]["title"]["content"] == "Image Card"
+        assert len(result["body"]["elements"]) == 2
+        assert result["body"]["elements"][0]["tag"] == "div"
+        assert result["body"]["elements"][1]["tag"] == "img"
+        assert result["body"]["elements"][1]["img_key"] == "img_key_123"
+
+    def test_build_card_v2_content_no_header(self, channel) -> None:
+        """Test building card without header."""
+        result = channel._build_card_v2_content("Just text", [])
+        assert result["schema"] == "2.0"
+        assert "header" not in result
+        assert len(result["body"]["elements"]) == 1
+
+    def test_build_card_v2_content_empty(self, channel) -> None:
+        """Test building card with empty content."""
+        result = channel._build_card_v2_content("", [])
+        assert result["schema"] == "2.0"
+        assert len(result["body"]["elements"]) == 1
+        assert result["body"]["elements"][0]["text"]["content"] == "[empty]"
+
+    def test_build_card_v2_content_multiple_images(self, channel) -> None:
+        """Test building card with multiple images."""
+        result = channel._build_card_v2_content(
+            "Gallery:",
+            ["img_1", "img_2", "img_3"],
+            header_title="Multi Image",
+            template="orange",
+        )
+        assert result["header"]["template"] == "orange"
+        # 1 text div + 3 images
+        assert len(result["body"]["elements"]) == 4
+        assert result["body"]["elements"][1]["img_key"] == "img_1"
+        assert result["body"]["elements"][2]["img_key"] == "img_2"
+        assert result["body"]["elements"][3]["img_key"] == "img_3"
+
+    def test_build_card_v2_content_templates(self, channel) -> None:
+        """Test all valid card header templates."""
+        templates = ["green", "red", "blue", "orange", "indigo", "grey"]
+        for template in templates:
+            result = channel._build_card_v2_content(
+                "Text",
+                [],
+                header_title="Title",
+                template=template,
+            )
+            assert result["header"]["template"] == template
+
+    @pytest.mark.asyncio
+    async def test_send_card_v2(self, channel) -> None:
+        """Test sending Card V2 message."""
+        with patch.object(
+            channel,
+            "_send_message_sync",
+            return_value="msg_123",
+        ) as mock_send:
+            result = await channel._send_card_v2(
+                receive_id_type="chat_id",
+                receive_id="oc_123",
+                text="Test message",
+                image_keys=["img_456"],
+                header_title="Test Card",
+                template="indigo",
+            )
+            assert result == "msg_123"
+            mock_send.assert_called_once()
+            call_args = mock_send.call_args
+            assert call_args[0][0] == "chat_id"
+            assert call_args[0][1] == "oc_123"
+            assert call_args[0][2] == "interactive"
+            # Verify content is valid JSON
+            content = json.loads(call_args[0][3])
+            assert content["schema"] == "2.0"
+            assert content["header"]["template"] == "indigo"
