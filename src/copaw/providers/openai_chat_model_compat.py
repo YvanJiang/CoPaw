@@ -38,8 +38,9 @@ def _get_backoff_base() -> float:
     try:
         return float(
             os.environ.get(
-                "COPAW_MODEL_BACKOFF_BASE", COPAW_MODEL_BACKOFF_BASE
-            )
+                "COPAW_MODEL_BACKOFF_BASE",
+                COPAW_MODEL_BACKOFF_BASE,
+            ),
         )
     except (ValueError, TypeError):
         return COPAW_MODEL_BACKOFF_BASE
@@ -49,7 +50,7 @@ def _get_backoff_cap() -> float:
     """Get max backoff delay from environment variable."""
     try:
         return float(
-            os.environ.get("COPAW_MODEL_BACKOFF_CAP", COPAW_MODEL_BACKOFF_CAP)
+            os.environ.get("COPAW_MODEL_BACKOFF_CAP", COPAW_MODEL_BACKOFF_CAP),
         )
     except (ValueError, TypeError):
         return COPAW_MODEL_BACKOFF_CAP
@@ -294,7 +295,9 @@ class OpenAIChatModelCompat(OpenAIChatModel):
                     raise
 
                 delay = _compute_backoff_seconds(
-                    attempt, base_delay, cap_delay
+                    attempt,
+                    base_delay,
+                    cap_delay,
                 )
                 logger.warning(
                     "Model API error (attempt %d/%d): %s. "

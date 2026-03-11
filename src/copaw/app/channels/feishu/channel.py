@@ -23,7 +23,6 @@ import threading
 import time
 import types
 from collections import OrderedDict
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -1585,7 +1584,7 @@ class FeishuChannel(BaseChannel):
         image_keys: List[str],
         header_title: Optional[str] = None,
         template: str = "blue",
-    ) -> bool:
+    ) -> Optional[str]:
         """发送 Card V2 消息."""
         card = self._build_card_v2_content(
             text,
@@ -2028,6 +2027,7 @@ class FeishuChannel(BaseChannel):
                 request,
                 to_handle,
                 "An error occurred while processing your request.",
+            )
 
     async def send(
         self,
