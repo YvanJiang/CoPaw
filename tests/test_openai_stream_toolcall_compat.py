@@ -304,7 +304,8 @@ def test_is_retryable_error_with_api_error_status_code() -> None:
         url="https://api.openai.com/v1/chat/completions",
     )
 
-    # Create APIError with retryable status code by setting status_code attribute
+    # Create APIError with retryable status code by setting status_code
+    # attribute
     error_503 = APIError(
         message="Service unavailable",
         request=mock_request,
@@ -377,11 +378,14 @@ async def test_call_retry_on_transient_error() -> None:
             )
         return {"content": "Success"}
 
-    with patch.object(
-        OpenAIChatModelCompat.__bases__[0],
-        "__call__",
-        mock_parent_call,
-    ), patch("asyncio.sleep", AsyncMock()):  # Skip actual sleep
+    with (
+        patch.object(
+            OpenAIChatModelCompat.__bases__[0],
+            "__call__",
+            mock_parent_call,
+        ),
+        patch("asyncio.sleep", AsyncMock()),
+    ):  # Skip actual sleep
         result = await model.__call__()
 
     assert call_count == 3
@@ -411,11 +415,14 @@ async def test_call_raises_after_max_retries() -> None:
             body=None,
         )
 
-    with patch.object(
-        OpenAIChatModelCompat.__bases__[0],
-        "__call__",
-        mock_parent_call,
-    ), patch("asyncio.sleep", AsyncMock()):  # Skip actual sleep
+    with (
+        patch.object(
+            OpenAIChatModelCompat.__bases__[0],
+            "__call__",
+            mock_parent_call,
+        ),
+        patch("asyncio.sleep", AsyncMock()),
+    ):  # Skip actual sleep
         with pytest.raises(InternalServerError):
             await model.__call__()
 

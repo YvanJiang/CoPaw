@@ -37,7 +37,9 @@ def _get_backoff_base() -> float:
     """Get base backoff delay from environment variable."""
     try:
         return float(
-            os.environ.get("COPAW_MODEL_BACKOFF_BASE", COPAW_MODEL_BACKOFF_BASE)
+            os.environ.get(
+                "COPAW_MODEL_BACKOFF_BASE", COPAW_MODEL_BACKOFF_BASE
+            )
         )
     except (ValueError, TypeError):
         return COPAW_MODEL_BACKOFF_BASE
@@ -64,7 +66,7 @@ def _compute_backoff_seconds(attempt: int, base: float, cap: float) -> float:
     Returns:
         Delay in seconds (capped at cap).
     """
-    return min(cap, base * (2 ** attempt))
+    return min(cap, base * (2**attempt))
 
 
 def _is_retryable_error(error: Exception) -> bool:
@@ -291,7 +293,9 @@ class OpenAIChatModelCompat(OpenAIChatModel):
                 if not _is_retryable_error(e) or attempt >= max_retries:
                     raise
 
-                delay = _compute_backoff_seconds(attempt, base_delay, cap_delay)
+                delay = _compute_backoff_seconds(
+                    attempt, base_delay, cap_delay
+                )
                 logger.warning(
                     "Model API error (attempt %d/%d): %s. "
                     "Retrying in %.2fs...",
