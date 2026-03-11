@@ -55,10 +55,14 @@ class FeishuConfig(BaseChannelConfig):
     verification_token for event handler. media_dir for received media.
 
     Webhook mode:
-        webhook_enabled: Enable HTTP webhook for receiving events (alternative to WebSocket)
-        webhook_path: URL path for webhook endpoint (default: /webhook/feishu)
-        webhook_encrypt_key: Key for decrypting webhook payloads (if encryption enabled)
-        webhook_verification_token: Token for verifying webhook request signature
+        webhook_enabled: Enable HTTP webhook for receiving events
+            (alternative to WebSocket)
+        webhook_path: URL path for webhook endpoint
+            (default: /webhook/feishu)
+        webhook_encrypt_key: Key for decrypting webhook payloads
+            (if encryption enabled)
+        webhook_verification_token: Token for verifying webhook
+            request signature
     """
 
     app_id: str = ""
