@@ -62,12 +62,16 @@ class TestVerifySignature:
         key = encrypt_key.encode("utf-8")
         msg = f"{timestamp}{nonce}{body}".encode("utf-8")
         expected_signature = base64.b64encode(
-            hmac.new(key, msg, hashlib.sha256).digest()
+            hmac.new(key, msg, hashlib.sha256).digest(),
         ).decode("utf-8")
 
         # Verify
         result = verify_signature(
-            encrypt_key, timestamp, nonce, body, expected_signature
+            encrypt_key,
+            timestamp,
+            nonce,
+            body,
+            expected_signature,
         )
         assert result is True
 
@@ -80,13 +84,23 @@ class TestVerifySignature:
         wrong_signature = "wrong_signature"
 
         result = verify_signature(
-            encrypt_key, timestamp, nonce, body, wrong_signature
+            encrypt_key,
+            timestamp,
+            nonce,
+            body,
+            wrong_signature,
         )
         assert result is False
 
     def test_verify_signature_no_key(self):
         """Test signature verification with no key (should pass)."""
-        result = verify_signature("", "timestamp", "nonce", "body", "signature")
+        result = verify_signature(
+            "",
+            "timestamp",
+            "nonce",
+            "body",
+            "signature",
+        )
         assert result is True
 
 
@@ -134,7 +148,9 @@ class TestWebhookEventHandling:
 
     def test_invalid_signature(self, client, mock_config):
         """Test webhook returns 403 for invalid signature."""
-        mock_config.channels.feishu.webhook_verification_token = "correct_token"
+        mock_config.channels.feishu.webhook_verification_token = (
+            "correct_token"
+        )
 
         with patch(
             "copaw.app.routers.feishu_webhook.load_config",
@@ -284,7 +300,7 @@ class TestWebhookEventFormat:
                     "sender_type": "user",
                     "name": "Test User",
                 },
-            }
+            },
         }
 
         await channel.handle_webhook_event(payload)
@@ -320,7 +336,7 @@ class TestWebhookEventFormat:
                     "sender_type": "user",
                     "name": "Test User",
                 },
-            }
+            },
         }
 
         await channel.handle_webhook_event(payload)
@@ -368,7 +384,7 @@ class TestWebhookEventFormat:
                     "sender_type": "bot",  # Bot sender
                     "name": "Bot",
                 },
-            }
+            },
         }
 
         await channel.handle_webhook_event(payload)
@@ -387,7 +403,8 @@ class TestDecryptBody:
 
     def test_decrypt_placeholder(self):
         """Test decrypt placeholder (not fully implemented)."""
-        # This should emit a warning since AES decryption is not fully implemented
+        # This should emit a warning since AES decryption is not
+        # fully implemented
         with pytest.warns(UserWarning):
             result = decrypt_body("key", base64.b64encode(b"test").decode())
             # Should return something (base64 decoded for now)

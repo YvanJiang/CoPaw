@@ -13,37 +13,42 @@ import json
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Create mock modules to avoid import dependencies
 _mock_agentscope = ModuleType("agentscope_runtime")
 _mock_agentscope.engine = ModuleType("agentscope_runtime.engine")
-_mock_agentscope.engine.schemas = ModuleType("agentscope_runtime.engine.schemas")
+_mock_agentscope.engine.schemas = ModuleType(
+    "agentscope_runtime.engine.schemas",
+)
 _mock_agentscope.engine.schemas.agent_schemas = Mock()
 _mock_agentscope.engine.schemas.agent_schemas.FileContent = Mock
 _mock_agentscope.engine.schemas.agent_schemas.ImageContent = Mock
 _mock_agentscope.engine.schemas.agent_schemas.TextContent = Mock
 sys.modules["agentscope_runtime"] = _mock_agentscope
 sys.modules["agentscope_runtime.engine"] = _mock_agentscope.engine
-sys.modules["agentscope_runtime.engine.schemas"] = _mock_agentscope.engine.schemas
-sys.modules["agentscope_runtime.engine.schemas.agent_schemas"] = _mock_agentscope.engine.schemas.agent_schemas
+sys.modules[
+    "agentscope_runtime.engine.schemas"
+] = _mock_agentscope.engine.schemas
+sys.modules[
+    "agentscope_runtime.engine.schemas.agent_schemas"
+] = _mock_agentscope.engine.schemas.agent_schemas
 
 # Mock other problematic imports
 sys.modules["lark_oapi"] = Mock()
 sys.modules["lark_oapi.ws"] = Mock()
 sys.modules["lark_oapi.ws.client"] = Mock()
 
-import pytest
-from collections import OrderedDict
+import pytest  # noqa: E402
 
 # Import the modules we're testing
-from copaw.app.channels.feishu.utils import (
+from copaw.app.channels.feishu.utils import (  # noqa: E402
     short_session_id_from_full_id,
     sender_display_string,
     extract_json_key,
     normalize_feishu_md,
 )
-from copaw.app.channels.feishu.constants import (
+from copaw.app.channels.feishu.constants import (  # noqa: E402
     FEISHU_SESSION_ID_SUFFIX_LEN,
     FEISHU_PROCESSED_IDS_MAX,
     FEISHU_TOKEN_REFRESH_BEFORE_SECONDS,
@@ -134,11 +139,14 @@ class TestFeishuConstants:
 
 
 # Import channel class with mocked dependencies
-with patch.dict("sys.modules", {
-    "lark_oapi": Mock(),
-    "lark_oapi.ws": Mock(),
-    "lark_oapi.ws.client": Mock(),
-}):
+with patch.dict(
+    "sys.modules",
+    {
+        "lark_oapi": Mock(),
+        "lark_oapi.ws": Mock(),
+        "lark_oapi.ws.client": Mock(),
+    },
+):
     from copaw.app.channels.feishu.channel import FeishuChannel
 
 
@@ -262,14 +270,14 @@ class TestFeishuChannelDeduplication:
         while len(self._processed_message_ids) > FEISHU_PROCESSED_IDS_MAX:
             self._processed_message_ids.popitem(last=False)
         """
-        from collections import OrderedDict
-
         # Add messages up to limit
         for i in range(FEISHU_PROCESSED_IDS_MAX + 10):
             msg_id = f"msg_{i:04d}"
             channel._processed_message_ids[msg_id] = None
             # Simulate the trimming logic from _on_message
-            while len(channel._processed_message_ids) > FEISHU_PROCESSED_IDS_MAX:
+            while (
+                len(channel._processed_message_ids) > FEISHU_PROCESSED_IDS_MAX
+            ):
                 channel._processed_message_ids.popitem(last=False)
 
         # Should have trimmed to max size
@@ -335,6 +343,7 @@ class TestFeishuChannelConfiguration:
     def test_channel_disabled_by_default(self) -> None:
         """Test channel is disabled by default from env."""
         import os
+
         # Ensure env var is not set
         if "FEISHU_CHANNEL_ENABLED" in os.environ:
             del os.environ["FEISHU_CHANNEL_ENABLED"]
