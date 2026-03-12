@@ -172,6 +172,10 @@ class FeishuChannel(BaseChannel):
         allow_from: Optional[List[str]] = None,
         deny_message: str = "",
         require_mention: bool = False,
+        card_v2_enabled: bool = True,
+        card_header_enabled: bool = False,
+        card_header_title: str = "",
+        card_header_color: str = "blue",
     ):
         super().__init__(
             process,
@@ -192,6 +196,12 @@ class FeishuChannel(BaseChannel):
         self.encrypt_key = encrypt_key or ""
         self.verification_token = verification_token or ""
         self._media_dir = Path(media_dir).expanduser()
+
+        # Card V2 configuration
+        self.card_v2_enabled = card_v2_enabled
+        self.card_header_enabled = card_header_enabled
+        self.card_header_title = card_header_title or ""
+        self.card_header_color = card_header_color or "blue"
 
         self._client: Any = None
         self._ws_client: Any = None
@@ -273,6 +283,10 @@ class FeishuChannel(BaseChannel):
             allow_from=config.allow_from or [],
             deny_message=config.deny_message or "",
             require_mention=config.require_mention,
+            card_v2_enabled=config.card_v2_enabled,
+            card_header_enabled=config.card_header_enabled,
+            card_header_title=config.card_header_title or "",
+            card_header_color=config.card_header_color or "blue",
         )
 
     def resolve_session_id(
@@ -1407,12 +1421,23 @@ class FeishuChannel(BaseChannel):
         receive_id: str,
         body: str,
     ) -> Optional[str]:
-        """Send text message (using Card V2 format).
+        """Send text message (using Card V2 format or original format).
 
         Returns the message_id on success, None on failure.
         Body already has bot_prefix if needed.
         """
-        card = self._build_card_v2_content(body, [], header_title=None)
+        # If Card V2 is disabled, use original text format
+        if not self.card_v2_enabled:
+            return await self._send_text(receive_id_type, receive_id, body)
+
+        # Use Card V2 format with optional header
+        header_title = None
+        template = "blue"
+        if self.card_header_enabled and self.card_header_title:
+            header_title = self.card_header_title
+            template = self.card_header_color
+
+        card = self._build_card_v2_content(body, [], header_title, template)
         content = json.dumps(card, ensure_ascii=False)
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -1731,6 +1756,10 @@ class FeishuChannel(BaseChannel):
     ) -> Optional[str]:
         """Send content parts using Card V2 format (text + images combined).
 
+        When card_v2_enabled is False, falls back to separate text and image messages.
+        When card_header_enabled is True and card_header_title is set, adds a colored
+        header to the card.
+
         Returns the message_id of the last successfully sent message,
         or None if nothing was sent.
         """
@@ -1806,19 +1835,54 @@ class FeishuChannel(BaseChannel):
                 if image_key:
                     image_keys.append(image_key)
 
-        # Send Card V2 message (text + images combined)
+        # Prepare body with prefix
         body = "\n".join(text_parts).strip()
         if prefix and body:
             body = prefix + body
 
         last_message_id: Optional[str] = None
-        if body or image_keys:
-            last_message_id = await self._send_card_v2(
-                receive_id_type,
-                receive_id,
-                body,
-                image_keys,
-            )
+
+        # If Card V2 is disabled, use original behavior (separate text and image messages)
+        if not self.card_v2_enabled:
+            # Send text first if present
+            if body:
+                last_message_id = await self.send_text(
+                    receive_id_type, receive_id, body
+                )
+            # Send images separately
+            for image_key in image_keys:
+                # Send images as interactive card (single image each)
+                card = self._build_card_v2_content("", [image_key])
+                content = json.dumps(card, ensure_ascii=False)
+                loop = asyncio.get_running_loop()
+                msg_id = await loop.run_in_executor(
+                    None,
+                    lambda: self._send_message_sync(
+                        receive_id_type,
+                        receive_id,
+                        "interactive",
+                        content,
+                    ),
+                )
+                if msg_id:
+                    last_message_id = msg_id
+        else:
+            # Send Card V2 message (text + images combined)
+            if body or image_keys:
+                header_title = None
+                template = "blue"
+                if self.card_header_enabled and self.card_header_title:
+                    header_title = self.card_header_title
+                    template = self.card_header_color
+
+                last_message_id = await self._send_card_v2(
+                    receive_id_type,
+                    receive_id,
+                    body,
+                    image_keys,
+                    header_title,
+                    template,
+                )
 
         # Files still sent separately
         for part in file_parts:

@@ -56,6 +56,14 @@ class FeishuConfig(BaseChannelConfig):
     verification_token: str = ""
     media_dir: str = "~/.copaw/media"
 
+    # Card V2 configuration
+    card_v2_enabled: bool = True
+    card_header_enabled: bool = False
+    card_header_title: str = ""
+    card_header_color: Literal[
+        "blue", "green", "red", "orange", "indigo", "grey"
+    ] = "blue"
+
 
 class QQConfig(BaseChannelConfig):
     app_id: str = ""
